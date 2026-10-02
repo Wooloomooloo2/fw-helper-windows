@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace>FwHelper</RootNamespace>
+    <AssemblyName>FwHelper</AssemblyName>
+    <Version>0.1.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>FW-Helper</Product>
+    <Description>Lightweight control tool for the Framework Laptop 13</Description>
+    <DebugType>embedded</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Run on any newer installed .NET desktop runtime (e.g. .NET 10) -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TaskScheduler" Version="2.12.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PawnIO MSR module (from G-Helper / PawnIO-Modules), used for Intel PL1/PL2 -->
+    <EmbeddedResource Include="Hardware\IntelMSR.bin">
+      <LogicalName>FwHelper.IntelMSR.bin</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>
