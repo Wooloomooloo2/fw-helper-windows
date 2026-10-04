@@ -46,5 +46,11 @@ Settings live in `%AppData%\FwHelper\config.json` and the log is in `%AppData%\F
 * `IOCTL_CROSEC_RDMEM` = `0x80EC6008`, buffer 8 + 256 bytes
 * Temp sensors: `local_f75397`, `cpu_f75303`, `battery_temp`, `ddr_f75303`, `peci-temp`; single fan
 
+## Documentation
+* [Architecture decisions](docs/adr/README.md)
+* [Hardware baseline](docs/hardware-baseline.md): measured EC, sensor, fan and power facts
+* [Feature parity with the Linux version](docs/feature-parity.md) ([fw-helper](https://github.com/Wooloomooloo2/fw-helper)) and the roadmap
+* [External references](docs/references.md)
+
 ## License
 GPL-3.0. Portions (UI controls, PawnIO wrapper, display helpers) are adapted from G-Helper, which is GPL-3.0.

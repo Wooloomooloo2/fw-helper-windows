@@ -1,0 +1,60 @@
+# Feature parity with the Linux version, and roadmap
+
+This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://github.com/Wooloomooloo2/fw-helper)
+`0.6.4` (commit `1e56f95`, 2026-09-26).
+
+✅ = done and verified on hardware · 🟡 = built but not verified, or partial · ❌ = missing · — = not applicable
+
+## Side by side
+
+| Area | Linux | Windows | Notes for Windows |
+|---|---|---|---|
+| **Fan: custom curve** | ✅ any number of points, 1 Hz, hysteresis, ramp up 12 / down 4 per tick | 🟡 8 points, 2 s, ramp down 4 %/tick, no hysteresis | Curve loop has only run for seconds. See ADR 0005 |
+| Fan: firmware-floor clamp (learned) | ✅ | ❌ | Needs the EC auto duty to be readable on Windows. Check this first |
+| Fan: battery guard | ✅ | ❌ | Highest-value safety gap. `battery_temp` is already read |
+| Fan: watchdog + crash-path restore | ✅ (`kill -9` → 0.27 s) | ❌ | Hard kill leaves a fixed duty |
+| Fan: release across suspend | ✅ | 🟡 | Code exists. No suspend event seen in the log yet |
+| Fan: stiction refusal (1–29/255) | ✅ | ❌ | |
+| Fan: pinned fixed duty | ✅ | ❌ | Only via `--selftest` |
+| **Named / saved profiles** | ✅ user profiles (`profiles.d`), save/delete, can override built-ins | ❌ three fixed modes with per-mode settings | Would need a model change: modes → named profiles |
+| Built-in ladder | ✅ quiet / balanced / performance / turbo / max, plus game / retro | 🟡 Silent / Balanced / Turbo | |
+| AC/battery auto-switch | ✅ (off by default) | ✅ (always on, remembered per source) | |
+| OS power-profile delegation | ✅ PPD | ✅ Windows power overlay | |
+| **Power limits (TDP)** | ✅ PL1 via kernel RAPL MMIO, **no extra software**, re-assert loop, 8–35 W | 🟡 PL1+PL2 via PawnIO MSR `0x610`, admin, never run | Likely wrong register (MMIO governs), ceiling about 35 W. See ADR 0006 |
+| Core parking | ✅ | ❌ | On Windows this would be the power-plan parking policy or affinity, not offlining. Low value (+2 %) |
+| GPU frequency cap | ✅ | ❌ | No obvious Windows route without the Intel driver API. Low value (+4.9 %) |
+| **Charge limit** | ✅ verified that charging stops | ✅ set/readback; stop not checked | Reapply on every boot (volatile) |
+| **Monitoring: temperatures** | ✅ all EC sensors + coretemp package, scaled to crit | ✅ 5 EC sensors | |
+| Monitoring: fan rpm/duty/owner | ✅ | ✅ rpm + duty/"EC auto" | |
+| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | 🟡 package watts code exists (PawnIO, admin) but isn't shown | Without admin: PDH "Power Meter"/EMI counters? Needs research |
+| Monitoring: CPU load %, busy MHz, throttle | ✅ | ❌ | PDH `Processor Information` counters (no admin) |
+| Monitoring: GPU load, achieved vs requested clock | ✅ | ❌ | PDH `GPU Engine` counters for load. Clock needs research |
+| Monitoring: memory / swap | ✅ | ❌ | `GlobalMemoryStatusEx` |
+| Monitoring: battery W, time left | ✅ | ✅ watts, % and health | |
+| Live charts | ✅ 6 cards, 300-sample window | ❌ | |
+| Session recording (CSV) | ✅ | ❌ | |
+| Overlay / in-game HUD | ✅ overlay window + MangoHud | ❌ | |
+| **Keyboard backlight / power LED** | ❌ | ✅ | Windows-only extra |
+| **Refresh-rate switching** | ❌ | ✅ 60/max/auto | Windows-only extra |
+| Tray icon + global hotkey | ❌ | ✅ `Ctrl+Shift+F5` | |
+| CLI | ✅ `fw-helperctl` | 🟡 `--selftest` only | |
+| Packaging | ✅ `.deb`, verified install/remove | 🟡 single-file exe + zip, not released | |
+| Automated tests / CI | ✅ fixture tests + CI | ❌ | |
+
+## Suggested roadmap
+
+This is in priority order. Safety comes first, because fan control and PL writes are the parts that can do damage.
+
+1. **Fan safety to Linux parity** (ADR 0005 gaps): battery guard, hysteresis, stiction band,
+   1 s poll, a watchdog thread, and a decision on the hard-kill path (a separate restore process/service, or accept the risk and document it).
+   Then run a soak test with a sleep/resume cycle.
+2. **Settle the fan scale question.** Windows 100 % → 7.3k rpm vs Linux full duty → about 5.2k (see hardware baseline).
+3. **Power limits: make them true or remove them.** Install PawnIO, run elevated, and check whether `0x610` binds under a load
+   longer than 32 s. If not, look into the MCHBAR copy. Re-base defaults on the 35 W ceiling, add re-assert after an overlay change,
+   and decide what happens on exit.
+4. **Monitoring** without admin: CPU load, GPU load (PDH), memory, plus package watts when PawnIO is available.
+   Then live charts on a "Monitor" view.
+5. **Named profiles** in place of three fixed modes: named fan curves, save/delete, and keep Silent/Balanced/Turbo as built-ins.
+6. Release engineering: GitHub release, CI build, unit tests for `FanCurve` and the curve controller (an EC interface behind a fake).
+7. Possibly later: the architecture question (a privileged service plus a user UI, Linux ADR 0003). This would solve
+   the hard-kill fan restore and the PawnIO admin requirement in one go, at the cost of an installer.
