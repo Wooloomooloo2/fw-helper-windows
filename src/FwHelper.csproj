@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>FwHelper</RootNamespace>
     <AssemblyName>FwHelper</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>FW-Helper</Product>
     <Description>Lightweight control tool for the Framework Laptop 13</Description>

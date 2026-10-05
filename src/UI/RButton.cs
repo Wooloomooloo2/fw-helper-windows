@@ -68,6 +68,13 @@ namespace FwHelper.UI
             var outer = new RectangleF(0, 0, Width, Height);
             using (var clip = RoundedRect(outer, radius)) Region = new Region(clip);
 
+            // Disabled: the base button already drew embossed text; paint over it so only our grey text shows
+            if (!Enabled)
+            {
+                using var back = new SolidBrush(BackColor);
+                g.FillRectangle(back, ClientRectangle);
+            }
+
             float stroke = Math.Max(1f, (_activated ? 2f : 1f) * scale);
             var inner = new RectangleF(stroke / 2, stroke / 2, Width - stroke - 1, Height - stroke - 1);
             Color border = _activated && BorderColor.A > 0 ? BorderColor : FlatAppearance.BorderColor;

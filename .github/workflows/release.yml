@@ -1,0 +1,42 @@
+name: Release
+
+# Push a tag like v0.2.0 to build, test and attach the exe to a DRAFT release.
+# Publishing the draft is a manual step, after the hardware test plan has passed.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test tests/FwHelper.Tests -c Release
+
+      - name: Publish
+        run: dotnet publish src -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "FwHelper-${{ github.ref_name }}-win-x64.zip"
+          Compress-Archive -Path publish/FwHelper.exe, README.md, LICENSE -DestinationPath $name
+          "ZIP=$name" >> $env:GITHUB_ENV
+
+      - name: Draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)."
+          gh release create "${{ github.ref_name }}" --draft --title "FW-Helper ${{ github.ref_name }}" --notes $notes publish/FwHelper.exe $env:ZIP

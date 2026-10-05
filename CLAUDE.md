@@ -28,11 +28,12 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 | [docs/hardware-test-plan.md](docs/hardware-test-plan.md) | **Every pending on-hardware check, bundled into one run.** Add new ones here instead of testing ad hoc |
 | [docs/references.md](docs/references.md) | External repos and specs we build on |
 | `README.md` | User-facing |
+| `CHANGELOG.md` | Per-version changes; release notes link here |
 
 ## Current state (2026-10-04)
 
-Version **0.1.0**, plus the fan safety work (ADR 0009), which is not yet released. Builds with 0 warnings, and 20 unit tests pass.
-`publish/` holds the v0.1.0 single-file exe and zip, and is gitignored.
+Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 83 unit tests pass, and CI is green. `publish/` is gitignored.
+The user is running a build from `e57f79b` (fan safety only), from `publish\`.
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -66,8 +67,12 @@ test on hardware. Add each new check to `docs/hardware-test-plan.md`. Done so fa
 `--hwtest` mode (fansweep, watchdog, pl), the power-limit rework (ADR 0010), monitoring with recording (ADR 0011), and user
 profiles with named fan curves (ADR 0012).
 
-**Next on the build backlog:** release prep (version bump to 0.2.0, GitHub release with the exe). Leave the release unpublished
-until the hardware test plan has passed. After that, run the bundled hardware test plan with the user.
+Release prep is done: version **0.2.0**, `CHANGELOG.md`, and `.github/workflows/release.yml` (pushing a `v*` tag creates a **draft**
+release with the exe and zip). **No tag has been pushed yet. Tag only after the hardware test plan has passed.**
+
+**Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts,
+then tag `v0.2.0`. Remaining build ideas are in `docs/feature-parity.md`: learned firmware floor, CPU/GPU watt split and throttle
+reasons via PawnIO, an EC fake so `FanControl` can be tested, and the service architecture question. After that, run the bundled hardware test plan with the user.
 The user has not yet given their feedback on v0.1.0.
 
 Open questions:
@@ -114,6 +119,7 @@ tests/
 ```powershell
 cd src
 dotnet build -c Release
+# publishing to ..\publish fails while FW-Helper is running from there (exe locked): quit it first
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish
 ..\publish\FwHelper.exe --selftest     # hardware test → %AppData%\FwHelper\selftest.txt (moves the fan!)
 ..\publish\FwHelper.exe --hwtest all   # targeted hardware experiments (see docs/hardware-test-plan.md); closes and restarts the tray app
@@ -160,7 +166,7 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
   render it offscreen from a throwaway xunit test (STA thread, `Location = (-4000,-4000)`, `Show()`, `DrawToBitmap`) into the scratchpad, then delete the test.
 - **Unit tests must never touch `AppConfig`.** It reads and writes the user's real `%AppData%\FwHelper\config.json`. Keep the logic
   pure (`ProfileList`, `FanController`, `PowerLimitKeeper`...) and test that.
-- **A disabled `RButton` draws its text twice.** Hide buttons that don't apply rather than disabling them, or fix `RButton.OnPaint`.
+- A disabled `RButton` used to draw its text twice (fixed 2026-10-05 in `OnPaint`). The profile buttons are hidden rather than disabled anyway.
 - Profile ids are config keys. Never renumber them, and never reuse a deleted one (ADR 0012).
 - `IntelPowerLimits.GetPackagePower()` keeps one shared last-energy state. With two callers (Monitor and Fans + Power), each one's
   interval gets shorter. The readings are still correct averages.

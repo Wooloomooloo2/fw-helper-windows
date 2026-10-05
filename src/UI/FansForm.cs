@@ -227,7 +227,7 @@ namespace FwHelper.UI
             }
             _loading = false;
 
-            // Hidden rather than disabled: RButton draws disabled text twice
+            // Hidden rather than disabled: an action that doesn't apply shouldn't take up attention
             _useButton.Visible = !active;
             _useButton.BorderColor = Modes.ColorOf(mode);
             _renameButton.Visible = _deleteButton.Visible = !Modes.IsBuiltIn(mode);

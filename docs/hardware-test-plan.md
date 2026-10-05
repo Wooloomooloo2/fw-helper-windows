@@ -4,7 +4,7 @@ These checks need the real laptop, and they are bundled so they can be run in on
 `CLAUDE.md` (Current state), in `docs/hardware-baseline.md` (new facts, tagged **[W]**), and in the relevant ADR.
 Then tick the box here and add the date.
 
-Before you start: publish a fresh build (see `CLAUDE.md` → Commands) and run it. Keep `%AppData%\FwHelper\log.txt` open in an editor
+Before you start: **quit FW-Helper** (the running exe locks `publishFwHelper.exe`), publish a fresh build (see `CLAUDE.md` → Commands), and run it. Keep `%AppData%\FwHelper\log.txt` open in an editor
 that reloads the file.
 
 ## A. Automated (`FwHelper.exe --hwtest <name>`)
