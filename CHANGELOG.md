@@ -10,6 +10,11 @@
 - A guard process (`FwHelper.exe --guard`) hands the fan back if FW-Helper is killed forcibly.
 - The fan status line shows when an override is active ("battery guard", "CPU ≥95°C", "EC: …").
 
+### Never quieter than the EC (ADR 0013)
+- The fan floor is learned from what the EC runs the fan at by itself, and applied on top of any custom curve. It is on by default and can be switched off in Fans + Power.
+- The fan curve follows PECI only. If PECI is lost, the fan goes back to the EC instead of following a board sensor.
+- `--selftest` also reports the EC's own duty, who owns the fan, and each sensor's EC thermal thresholds.
+
 ### Power limits (ADR 0010)
 - Defaults and slider ranges now follow the measured board limits: PL1 8–35 W, PL2 15–80 W, and defaults of 15/30, 25/60 and 35/64 W.
 - If firmware overrides a limit after a power-mode change, it is re-applied, up to 5 times.
@@ -27,8 +32,8 @@
 
 ### Tooling
 - `--hwtest fansweep|watchdog|pl|all` runs targeted hardware experiments.
-- CI builds with warnings as errors, runs 83 unit tests and publishes the exe on every push. Pushing a tag creates a draft release.
-- Project documentation: `CLAUDE.md`, ADRs 0001–0012, the hardware baseline, the feature comparison with the Linux version, and the test plan.
+- CI builds with warnings as errors, runs 103 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
+- Project documentation: `CLAUDE.md`, ADRs 0001–0013, the hardware baseline, the feature comparison with the Linux version, and the test plan.
 
 ## 0.1.0 (2026-10-03)
 

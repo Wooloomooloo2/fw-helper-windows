@@ -78,7 +78,7 @@ The user has not yet given their feedback on v0.1.0.
 Open questions:
 1. Fan scale: Windows 100 % → 7.3k rpm, but Linux full duty → about 5.2k. Which is right?
 2. Does a PawnIO write to MSR `0x610` bind PL1 at all? Linux says the MMIO/MCHBAR copy governs.
-3. Can the EC's own auto-mode duty be read on Windows? This is needed for a learned firmware floor (Linux ADR 0011).
+3. ~~Can the EC's own auto-mode duty be read on Windows?~~ **Yes** (`0x0027`, 2026-10-05). The floor is built (ADR 0013).
 
 ## Layout
 

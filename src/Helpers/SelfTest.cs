@@ -21,7 +21,8 @@ namespace FwHelper.Helpers
             var temps = FrameworkEc.GetTemperatures();
             foreach (var t in temps) Log($"temp {t.Index} {t.Name}: {t.Celsius}");
             Log($"cpu temp: {FrameworkEc.GetCpuTemp(temps)}");
-            Log($"fans: {string.Join(",", FrameworkEc.GetFanRpms())} target {FrameworkEc.GetFanTargetRpm()}");
+            Log($"fans: {string.Join(",", FrameworkEc.GetFanRpms())} target {FrameworkEc.GetFanTargetRpm()} duty {FrameworkEc.GetFanDuty()}% auto {FrameworkEc.IsFanAuto()}");
+            foreach (var t in temps) Log($"thermal config {t.Name}: {FrameworkEc.GetThermalConfig(t.Index)}");
 
             var b = FrameworkEc.GetBattery();
             Log($"battery: {b}");

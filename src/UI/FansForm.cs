@@ -19,7 +19,8 @@ namespace FwHelper.UI
         {
             public override string ToString() => Label;
         }
-        private readonly CheckBox _customFan;
+        private readonly CheckBox _customFan, _floorCheck;
+        private readonly Label _floorLabel;
         private readonly FanCurveEditor _editor;
         private readonly Label _liveLabel, _sensorList, _plStatus, _pl1Label, _pl2Label;
         private readonly RButton[] _overlayButtons = new RButton[3];
@@ -108,7 +109,17 @@ namespace FwHelper.UI
             var hint = Label("Drag points to edit. CPU ≥95°C or a hot battery overrides it.", M, y + 6, Inner - 206);
             _tip.SetToolTip(hint, hint.Text);
             hint.Tag = "dim";
-            y += 28 + 14;
+            y += 28 + 6;
+
+            // Global, not per profile: it's a safety preference about the fan, not a performance setting
+            _floorCheck = new CheckBox { Text = "Never quieter than the EC's own fan control", Location = new Point(M, y), AutoSize = true };
+            _floorCheck.Click += (_, _) => FanControl.SetFloorEnabled(_floorCheck.Checked);
+            _tip.SetToolTip(_floorCheck, "Learned from what the EC runs the fan at by itself. Applies on top of any custom curve.");
+            Controls.Add(_floorCheck);
+            _floorLabel = Label("", M + 280, y + 2, Inner - 280);
+            _floorLabel.TextAlign = ContentAlignment.TopRight;
+            _floorLabel.Tag = "dim";
+            y += 24 + 14;
 
             // ---------- Windows power mode ----------
             Header("Windows power mode", y);
@@ -233,6 +244,7 @@ namespace FwHelper.UI
             _renameButton.Visible = _deleteButton.Visible = !Modes.IsBuiltIn(mode);
 
             _customFan.Checked = Modes.IsCustomFan(mode);
+            _floorCheck.Checked = FanControl.IsFloorEnabled();
             _editor.LineColor = Modes.ColorOf(mode);
             _editor.Curve = Modes.GetCurve(mode);
             _editor.Enabled = _customFan.Checked;
@@ -354,6 +366,9 @@ namespace FwHelper.UI
             string duty = FanDutyText(FanControl.IsCustomActive, FanControl.LastDuty, FanControl.Status);
             string power = IntelPowerLimits.GetPackagePower() is float w ? $" · CPU {w:0.0}W" : "";
             _liveLabel.Text = $"{(cpu is null ? "-" : cpu + "°C")} · {(fans.Count > 0 ? fans[0] + " RPM" : "-")} · {duty}{power}";
+
+            var loop = FanControl.Loop;
+            _floorLabel.Text = $"EC now ~{loop.Floor.Floor(loop.LastModel)}% · {loop.Floor.LearnedBuckets}/{FirmwareFloor.Buckets} learned";
 
             _sensorList.Text = string.Join("   ", temps.Select(t => $"{t.Name.Split('@')[0]}: {(t.Celsius is null ? "n/a" : t.Celsius + "°C")}"));
         }

@@ -62,7 +62,8 @@ namespace FwHelper.Features
             _ceilingReleased = false;
         }
 
-        public FanDecision Next(int? cpu, int? battery)
+        /// <param name="floor">Minimum duty from <see cref="FirmwareFloor"/> ("never quieter than the EC"), 0 for none.</param>
+        public FanDecision Next(int? cpu, int? battery, int floor = 0)
         {
             // No CPU temperature, no manual fan
             if (cpu is null)
@@ -95,6 +96,12 @@ namespace FwHelper.Features
             {
                 request = guard;
                 reason = "battery guard";
+            }
+
+            if (floor > request)
+            {
+                request = Math.Min(floor, 100);
+                reason = "EC floor";
             }
 
             int duty = request;

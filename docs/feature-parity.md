@@ -10,9 +10,9 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Area | Linux | Windows | Notes for Windows |
 |---|---|---|---|
 | **Fan: custom curve** | ✅ any number of points, 1 Hz, hysteresis, ramp up 12 / down 4 per tick | 🟡 8 points, 1 Hz, 2 °C hysteresis, ramp down 2 %/tick, unit-tested | Not yet soak-tested on hardware. ADR 0009 |
-| Fan: firmware-floor clamp (learned) | ✅ | ❌ | Needs the EC auto duty to be readable on Windows. Check this first |
+| Fan: firmware-floor clamp (learned) | ✅ | 🟡 learned from the EC duty (`0x0027`), lowest per model bucket, on by default, unit-tested | Keyed on the EC's own sensor ramps, not PECI. ADR 0013 |
 | Fan: battery guard | ✅ | 🟡 42→48 °C ramp to 100 %, unit-tested | Holds 100 % rather than releasing (ADR 0009) |
-| Fan: watchdog + crash-path restore | ✅ (`kill -9` → 0.27 s) | 🟡 watchdog thread (untested); ✅ guardian process verified on hard kill | Not covered: End process tree (ADR 0009) |
+| Fan: watchdog + crash-path restore | ✅ (`kill -9` → 0.27 s) | 🟡 watchdog unit-tested against a fake EC; ✅ guardian process verified on hard kill | Not covered: End process tree (ADR 0009) |
 | Fan: release across suspend | ✅ | 🟡 | Code exists. No suspend event seen in the log yet |
 | Fan: stiction refusal (1–29/255) | ✅ | ✅ never 1–11 % (unit-tested) | |
 | Fan: pinned fixed duty | ✅ | ❌ | Only via `--selftest` |

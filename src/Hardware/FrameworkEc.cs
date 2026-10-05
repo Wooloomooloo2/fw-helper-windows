@@ -111,6 +111,13 @@ namespace FwHelper.Hardware
                 ?? valid.Where(t => !t.Name.Contains("batt", StringComparison.OrdinalIgnoreCase)).Max(t => t.Celsius);
         }
 
+        /// <summary>
+        /// The fan control input: PECI (CPU package) only, never a fallback. A board sensor reads ~45 °C while the CPU can be at 90,
+        /// so without PECI the fan must go back to the EC rather than follow the wrong sensor (ADR 0013).
+        /// </summary>
+        public static int? GetControlTemp(List<TempSensor> temps) =>
+            temps.FirstOrDefault(t => t.Name.Contains("peci", StringComparison.OrdinalIgnoreCase))?.Celsius;
+
         public static List<int> GetFanRpms()
         {
             var result = new List<int>();
@@ -138,6 +145,37 @@ namespace FwHelper.Hardware
         {
             percent = Math.Clamp(percent, 0, 100);
             return Ec.Command(EC_CMD_PWM_SET_FAN_DUTY, 0, BitConverter.GetBytes((uint)percent)) == EcStatus.Success;
+        }
+
+        // Read-only fan state (layouts from Linux drivers/hwmon/cros_ec_hwmon.c + cros_ec_commands.h)
+        private const ushort EC_CMD_PWM_GET_FAN_DUTY = 0x0027;
+        private const ushort EC_CMD_THERMAL_GET_THRESHOLD = 0x0051;
+        private const byte EC_AUTO_FAN_CONTROL_CMD_GET = 1;
+
+        /// <summary>Duty the fan is running at right now (%), whoever set it. Works in EC auto mode too: that's the EC's own choice.</summary>
+        public static int? GetFanDuty(int fan = 0)
+        {
+            if (Ec.Command(EC_CMD_PWM_GET_FAN_DUTY, 0, new[] { (byte)fan }, 4, out var resp) != EcStatus.Success) return null;
+            return (int)BitConverter.ToUInt32(resp);
+        }
+
+        /// <summary>Hardware truth for "who owns the fan": true = EC thermal control, false = fixed duty from the host.</summary>
+        public static bool? IsFanAuto(int fan = 0)
+        {
+            // v2: { u8 fan_idx; u8 cmd; u8 set_auto; } padded to 4
+            if (Ec.Command(EC_CMD_THERMAL_AUTO_FAN_CTRL, 2, new byte[] { (byte)fan, EC_AUTO_FAN_CONTROL_CMD_GET, 0, 0 }, 1, out var resp) != EcStatus.Success) return null;
+            return resp[0] != 0;
+        }
+
+        /// <summary>EC thermal config for one sensor, °C (null = not set): host warn/high/halt thresholds and the EC fan ramp.</summary>
+        public record ThermalConfig(int? Warn, int? High, int? Halt, int? FanOff, int? FanMax);
+
+        public static ThermalConfig? GetThermalConfig(int sensor)
+        {
+            // v1: u32 sensor_num → struct ec_thermal_config { u32 temp_host[3]; u32 temp_host_release[3]; u32 temp_fan_off; u32 temp_fan_max; } in K
+            if (Ec.Command(EC_CMD_THERMAL_GET_THRESHOLD, 1, BitConverter.GetBytes((uint)sensor), 32, out var c) != EcStatus.Success) return null;
+            int? C(int offset) => BitConverter.ToUInt32(c, offset) is uint k and > 0 ? (int)k - 273 : null;
+            return new ThermalConfig(C(0), C(4), C(8), C(24), C(28));
         }
 
         /// <summary>Hand all fans back to the EC thermal control loop.</summary>

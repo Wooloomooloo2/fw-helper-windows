@@ -79,6 +79,7 @@ namespace FwHelper
 
             ModeControl.ModeChanged += () => TrayIcon.Icon = TrayIcons.ForMode(ModeControl.CurrentMode, 32);
 
+            FanControl.Init();
             ApplyAll();
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;

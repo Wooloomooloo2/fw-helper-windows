@@ -36,6 +36,9 @@ When you measure something on Windows that confirms or contradicts an [L] fact, 
 | `0x0020` | PWM_GET_FAN_TARGET_RPM | Reads 0 under manual control [L] |
 | `0x0022/0x0023` | Keyboard backlight get/set | Percent [W] |
 | `0x0024` | PWM_SET_FAN_DUTY | Percent, all fans. **Turns off EC auto.** In auto mode the EC stores whole percent [W][L] |
+| `0x0027` | PWM_GET_FAN_DUTY | v0 `{u8 fan}` → `{u32 percent}`. **Works in EC auto mode** and reads the EC's own choice (25–27 % at board 45–46 °C) [W] |
+| `0x0051` | THERMAL_GET_THRESHOLD | v1 `{u32 sensor}` → `{u32 host[warn,high,halt], release[3], fan_off, fan_max}` in K. See the sensor table [W] |
+| `0x0052` v2 GET | THERMAL_AUTO_FAN_CTRL | `{fan, cmd=1, 0}` → `{u8 is_auto}`. Reports who owns the fan, from the hardware [W] |
 | `0x0052` | THERMAL_AUTO_FAN_CTRL | Gives the fan back to the EC. The EC takes control again within about 4 s [W][L] |
 | `0x0070` | TEMP_SENSOR_GET_INFO | Sensor names [W] |
 | `0x3E03` | CHARGE_LIMIT_CONTROL | `[mode, max, min]`. Modes: Disable 0x01, Set 0x02, Get 0x08, Override 0x80. **max comes before min.** Get returns `[max, min]`. (Not `0x3E07`) [W][L] |
@@ -55,6 +58,21 @@ fans at `0x10` (`0xFFFF` = absent, `0xFFFE` = stalled), thermal version at `0x23
 | 3 | `ddr_f75303@4d` | 86.85 °C | |
 | 4 | `peci-temp` | 119.85 °C | Higher than Tjmax, so useless as a limit. **Fan control input** |
 
+EC thermal config, read with `0x0051` on 2026-10-05 [W]:
+
+| Sensor | EC fan ramp (fan_off → fan_max) | host high / halt | high release |
+|---|---|---|---|
+| `local_f75397` | 40 → 75 °C | 88 / 98 °C | 78 |
+| `cpu_f75303` | 40 → 78 °C | 88 / 98 °C | 78 |
+| `battery_temp` | **40 → 50 °C** | 50 / 60 °C | 40 |
+| `ddr_f75303` | 40 → 50 °C | 87 / 97 °C | 77 |
+| `peci-temp` | 103 → 105 °C (effectively unused) | 120 / 127 °C | — |
+
+- **The EC drives the fan from the board sensors, not PECI** [W]. Over 60 s, PECI moved between 57 and 80 °C with no effect, while the duty followed
+  local/cpu_f75303 (45 ↔ 46 °C → 25 ↔ 27 %). This explains the slow, hysteretic EC behaviour Linux saw when tracking PECI: the board sensors lag.
+- The plain ChromeOS formula (highest per-sensor ramp position) gives 14–18 % where the EC actually runs 25–27 %. So the EC applies its own
+  mapping on top, about +10 points at the low end [W].
+- Linux's "crit" values are the EC's host `high` thresholds (e.g. battery 49.85 ≈ 50 °C).
 - Tjmax is 100 °C. Readings are whole Kelvin, so values move in steps of about 1 °C and jitter by ±1 °C. PECI can rise about 4 °C/s [L]
 - Peak PECI in normal use: 92.8 °C [L]
 

@@ -1,6 +1,6 @@
 # 0009 — Fan safety at Linux parity: a pure controller, a watchdog and a guardian process
 
-- **Status:** Accepted. Amends [0005](0005-software-fan-curve-with-ec-handback.md)
+- **Status:** Accepted. Amends [0005](0005-software-fan-curve-with-ec-handback.md). The battery-guard reasoning is corrected by [0013](0013-learned-ec-floor-and-peci-only-control.md)
 - **Date:** 2026-10-04
 
 ## Context
@@ -29,8 +29,10 @@ gaps were first on the roadmap.
 | Missing battery sensor | The curve keeps running without the guard | — |
 
 The battery guard **deliberately differs from Linux**. Windows holds 100 % at crit−2 where Linux releases.
-The EC's own curve follows CPU temperature: on the heating branch it does not start the fan below about 67 °C.
-So releasing with an idle CPU and a hot, charging battery would *stop* the fan.
+~~The EC's own curve follows CPU temperature: on the heating branch it does not start the fan below about 67 °C.
+So releasing with an idle CPU and a hot, charging battery would *stop* the fan.~~ **Corrected 2026-10-05 (ADR 0013):** the EC
+ramps the fan on battery temperature too, from 40 to 50 °C, read from `EC_CMD_THERMAL_GET_THRESHOLD`. Holding 100 % is still the more
+conservative choice near the top of that range, so the behaviour stays as it is.
 
 **2. Duty written every tick.** The duty is written every tick, not only when it changes. If something else hands the fan back to the
 EC (an old instance's guardian, `framework_tool`), the next tick takes it back.

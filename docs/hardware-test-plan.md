@@ -37,6 +37,9 @@ tray app. Run them from `publish\`.
 | ☐ | Profiles | Fans + Power → New… (copy of Balanced), rename it, set a different Windows power mode, Use it. Check the header in the main window, the tray menu, and Ctrl+Shift+F5 cycling through it. Then Delete it while it's active | The header shows the name in the profile's colour. The hotkey cycles Balanced → Turbo → Silent → yours. Deleting it falls back to the AC/battery mode |
 | ☐ | Named curves | Edit a curve → Curves ▾ → Save as "Test", Reset curve, then Curves ▾ → Test | The saved curve comes back. Delete saved curve removes it |
 | ☐ | Upgrade path | Start this build over the v0.1.0 `config.json` (keep a copy first) | The same mode is restored per AC/battery. Nothing is reset |
+| ☐ | EC floor learning | Leave all profiles on EC automatic for about 30 min of mixed use. Then open Fans + Power | "N/21 learned" has grown. `config.json` has `ec_floor`, and its values are close to the duty `--selftest` reports at similar temperatures |
+| ☐ | EC floor binding | With learned points, turn on a very quiet custom curve (all 0 % up to 60 °C) and keep the floor switch on | The status shows `EC floor`, and the fan doesn't drop below what the EC ran at. Turning the switch off lets the curve go quieter |
+| ☐ | PECI loss (code-reviewed only) | Not reproducible on demand. Check the log for `EC: no CPU temperature` if PECI ever drops out | The fan goes back to the EC. It never follows a board sensor |
 | ☐ | PL restore | With an override active, quit FW-Helper | `PL MSR restored` appears in the log |
 
 ## Results log
@@ -44,3 +47,4 @@ tray app. Run them from `publish\`.
 | Date | Test | Result | Notes |
 |---|---|---|---|
 | 2026-10-04 | Guardian vs forced kill (dummy parent) | ✅ | ~28 MB working set |
+| 2026-10-05 | Read-only EC probe: `0x0027` fan duty, `0x0052` v2 is_auto, `0x0051` thresholds | ✅ | Duty is readable in auto mode. The EC follows the board sensors, not PECI (hardware-baseline.md) |
