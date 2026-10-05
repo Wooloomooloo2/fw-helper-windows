@@ -52,7 +52,8 @@ Version **0.1.0**, plus the fan safety work (ADR 0009), which is not yet release
 | CI (GitHub Actions: build `-warnaserror`, test, publish artifact) | ✅ green | `.github/workflows/ci.yml` |
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
 | Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
-| Unit tests | 🟡 FanController, FanCurve, PowerLimitKeeper, telemetry CSV/GPU/chart helpers (59) | `dotnet test tests/FwHelper.Tests` |
+| User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
+| Unit tests | 🟡 FanController, FanCurve, PowerLimitKeeper, telemetry, profiles/curve library (83) | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -62,9 +63,11 @@ the fan is overriding the curve ("battery guard", "CPU ≥95°C", "EC: …").
 
 2026-10-05: **The user's direction is to build as much as possible and run the hardware tests together later.** Don't stop to
 test on hardware. Add each new check to `docs/hardware-test-plan.md`. Done so far today: CI and more unit tests, the
-`--hwtest` mode (fansweep, watchdog, pl), the power-limit rework (ADR 0010), and monitoring with recording (ADR 0011).
+`--hwtest` mode (fansweep, watchdog, pl), the power-limit rework (ADR 0010), monitoring with recording (ADR 0011), and user
+profiles with named fan curves (ADR 0012).
 
-**Next on the build backlog:** (1) named profiles and named fan curves; (2) release prep (version bump, GitHub release). After that, run the bundled hardware test plan with the user.
+**Next on the build backlog:** release prep (version bump to 0.2.0, GitHub release with the exe). Leave the release unpublished
+until the hardware test plan has passed. After that, run the bundled hardware test plan with the user.
 The user has not yet given their feedback on v0.1.0.
 
 Open questions:
@@ -86,8 +89,9 @@ src/
     Pdh.cs                performance counter (PDH) P/Invoke, English paths, wildcard arrays
     SystemMetrics.cs      CPU utility/effective MHz, GPU busiest engine + shared mem, RAM
   Features/
-    Modes.cs              mode ids + per-mode config accessors (overlay, fan, PL)
-    ModeControl.cs        apply a mode; AC/DC memory; Ctrl+Shift+F5 cycle
+    Modes.cs              profiles: built-ins 0–2, user ids 3+; per-profile config accessors; ProfileList (pure helpers)
+    ModeControl.cs        apply a profile; AC/DC memory; Ctrl+Shift+F5 cycle
+    FanCurveLibrary.cs    named curves in one config string
     FanController.cs      pure per-tick fan decision: hysteresis, ramp, stall band, CPU/battery overrides (no I/O, unit-tested)
     FanControl.cs         1 Hz loop thread + watchdog thread, EC writes, hand-back, Status for the UI
     FanCurve.cs           8-point curve, parse/normalize/interpolate
@@ -99,7 +103,8 @@ src/
     BatteryControl.cs     charge limit persistence/reapply
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
   Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest)
-  UI/                     SettingsForm (main), FansForm (Fans + Power), MonitorForm + LineChart, FanCurveEditor, RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
+  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, FanCurveEditor, ProfileMenu, PromptForm,
+                          RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit; FanControllerTests (safety rules + random-walk invariants)
 ```
@@ -153,6 +158,10 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - A process started from the autostart task has cwd = System32, which is how it decides to start hidden.
 - **UI can't be checked by launching the app here.** Starting a second instance closes the user's running one. To look at a form,
   render it offscreen from a throwaway xunit test (STA thread, `Location = (-4000,-4000)`, `Show()`, `DrawToBitmap`) into the scratchpad, then delete the test.
+- **Unit tests must never touch `AppConfig`.** It reads and writes the user's real `%AppData%\FwHelper\config.json`. Keep the logic
+  pure (`ProfileList`, `FanController`, `PowerLimitKeeper`...) and test that.
+- **A disabled `RButton` draws its text twice.** Hide buttons that don't apply rather than disabling them, or fix `RButton.OnPaint`.
+- Profile ids are config keys. Never renumber them, and never reuse a deleted one (ADR 0012).
 - `IntelPowerLimits.GetPackagePower()` keeps one shared last-energy state. With two callers (Monitor and Fans + Power), each one's
   interval gets shorter. The readings are still correct averages.
 

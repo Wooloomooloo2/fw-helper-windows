@@ -16,7 +16,7 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Fan: release across suspend | ✅ | 🟡 | Code exists. No suspend event seen in the log yet |
 | Fan: stiction refusal (1–29/255) | ✅ | ✅ never 1–11 % (unit-tested) | |
 | Fan: pinned fixed duty | ✅ | ❌ | Only via `--selftest` |
-| **Named / saved profiles** | ✅ user profiles (`profiles.d`), save/delete, can override built-ins | ❌ three fixed modes with per-mode settings | Would need a model change: modes → named profiles |
+| **Named / saved profiles** | ✅ user profiles (`profiles.d`), save/delete, can override built-ins | ✅ user profiles (copy, rename, delete) + named fan-curve library | Built-ins can be edited but not deleted. ADR 0012 |
 | Built-in ladder | ✅ quiet / balanced / performance / turbo / max, plus game / retro | 🟡 Silent / Balanced / Turbo | |
 | AC/battery auto-switch | ✅ (off by default) | ✅ (always on, remembered per source) | |
 | OS power-profile delegation | ✅ PPD | ✅ Windows power overlay | |
@@ -53,7 +53,7 @@ This is in priority order. Safety comes first, because fan control and PL writes
    and decide what happens on exit.
 4. ~~**Monitoring**~~: built 2026-10-05 (ADR 0011). Originally: without admin, CPU load, GPU load (PDH), memory, plus package watts when PawnIO is available.
    Then live charts on a "Monitor" view.
-5. **Named profiles** in place of three fixed modes: named fan curves, save/delete, and keep Silent/Balanced/Turbo as built-ins.
-6. Release engineering: CI done 2026-10-05. Still to do: GitHub release, unit tests for `FanCurve` and the curve controller (an EC interface behind a fake).
+5. ~~**Named profiles**~~: built 2026-10-05 (ADR 0012). Originally: in place of three fixed modes, named fan curves, save/delete, and keep Silent/Balanced/Turbo as built-ins.
+6. Release engineering: CI and unit tests done 2026-10-05. Still to do: a GitHub release, and an EC interface behind a fake so `FanControl` itself can be tested.
 7. Possibly later: the architecture question (a privileged service plus a user UI, Linux ADR 0003). This would solve
    the hard-kill fan restore and the PawnIO admin requirement in one go, at the cost of an installer.

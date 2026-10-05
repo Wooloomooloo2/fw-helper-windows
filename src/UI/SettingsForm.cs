@@ -10,7 +10,9 @@ namespace FwHelper.UI
     {
         private const int W = 420, M = 12, Inner = W - 2 * M;
 
-        private readonly RButton[] _modeButtons = new RButton[Modes.Count];
+        private readonly RButton[] _modeButtons = new RButton[Modes.BuiltInCount];
+        private readonly Label _modeHeader;
+        private readonly ContextMenuStrip _profileMenu = new();
         private readonly RButton _fansButton;
         private readonly Label _sensorsLabel, _batteryLabel, _chargeLabel, _screenLabel, _kbLabel, _ledLabel, _footerLabel;
         private readonly Slider _chargeSlider, _kbSlider;
@@ -40,13 +42,16 @@ namespace FwHelper.UI
             int y = M;
 
             // ---------- Performance ----------
-            AddHeader("Performance mode", ref y, out _sensorsLabel);
+            _modeHeader = AddHeader("Performance mode ▾", ref y, out _sensorsLabel);
+            _modeHeader.Cursor = Cursors.Hand;
+            _modeHeader.Click += (_, _) => ShowProfileMenu();
+            _tip.SetToolTip(_modeHeader, "All profiles, including your own");
             int bw = (Inner - 3 * 8) / 4;
-            for (int i = 0; i < Modes.Count; i++)
+            for (int i = 0; i < Modes.BuiltInCount; i++)
             {
                 int mode = i;
-                var b = MakeButton(Modes.Names[i], M + i * (bw + 8), y, bw, 64);
-                b.BorderColor = Modes.Colors[i];
+                var b = MakeButton(Modes.Name(i), M + i * (bw + 8), y, bw, 64);
+                b.BorderColor = Modes.ColorOf(i);
                 b.Font = new Font(Font.FontFamily, 10f, FontStyle.Bold);
                 b.Click += (_, _) => ModeControl.SetMode(mode);
                 _modeButtons[i] = b;
@@ -141,7 +146,7 @@ namespace FwHelper.UI
 
         // ---------- Layout helpers ----------
 
-        private void AddHeader(string text, ref int y, out Label right)
+        private Label AddHeader(string text, ref int y, out Label right)
         {
             var header = MakeLabel(text, M, y, 200);
             header.Font = new Font(Font.FontFamily, 9.5f, FontStyle.Bold);
@@ -149,6 +154,16 @@ namespace FwHelper.UI
             right.TextAlign = ContentAlignment.TopRight;
             right.Tag = "dim";
             y += 26;
+            return header;
+        }
+
+        private void ShowProfileMenu()
+        {
+            _profileMenu.Items.Clear();
+            _profileMenu.Items.Add(new ToolStripSeparator());
+            _profileMenu.Items.Add("Manage profiles…", null, (_, _) => { if (FansForm is null || !FansForm.Visible) ToggleFans(); });
+            ProfileMenu.Fill(_profileMenu.Items, 0);
+            _profileMenu.Show(_modeHeader, new Point(0, _modeHeader.Height));
         }
 
         private Label MakeLabel(string text, int x, int y, int w)
@@ -195,8 +210,10 @@ namespace FwHelper.UI
         public void VisualiseMode()
         {
             int mode = ModeControl.CurrentMode;
-            for (int i = 0; i < Modes.Count; i++) _modeButtons[i].Activated = i == mode;
-            _chargeSlider.AccentColor = _kbSlider.AccentColor = Modes.Colors[mode];
+            for (int i = 0; i < Modes.BuiltInCount; i++) _modeButtons[i].Activated = i == mode;
+            _modeHeader.Text = Modes.IsBuiltIn(mode) ? "Performance mode ▾" : $"Profile: {Modes.Name(mode)} ▾";
+            _modeHeader.ForeColor = Modes.IsBuiltIn(mode) ? RForm.ForeMain : Modes.ColorOf(mode);
+            _chargeSlider.AccentColor = _kbSlider.AccentColor = Modes.ColorOf(mode);
             _chargeSlider.Invalidate();
             _kbSlider.Invalidate();
             Icon = TrayIcons.ForMode(mode);
@@ -309,7 +326,7 @@ namespace FwHelper.UI
             if (m.Msg == WM_HOTKEY && m.WParam == HOTKEY_MODE)
             {
                 ModeControl.CycleMode();
-                Program.Toast.ShowToast(Modes.Name(ModeControl.CurrentMode), Modes.Colors[ModeControl.CurrentMode]);
+                Program.Toast.ShowToast(Modes.Name(ModeControl.CurrentMode), Modes.ColorOf(ModeControl.CurrentMode));
             }
             base.WndProc(ref m);
         }

@@ -10,7 +10,15 @@ namespace FwHelper.UI
         private const int W = 460, M = 12, Inner = W - 2 * M;
 
         private int _editMode;
-        private readonly RButton[] _modeTabs = new RButton[Modes.Count];
+        private bool _loading;
+        private readonly ComboBox _profileCombo;
+        private readonly RButton _useButton, _renameButton, _deleteButton;
+        private readonly ToolTip _tip = new();
+
+        private sealed record ProfileItem(int Id, string Label)
+        {
+            public override string ToString() => Label;
+        }
         private readonly CheckBox _customFan;
         private readonly FanCurveEditor _editor;
         private readonly Label _liveLabel, _sensorList, _plStatus, _pl1Label, _pl2Label;
@@ -33,18 +41,35 @@ namespace FwHelper.UI
 
             int y = M;
 
-            // Mode tabs: edit the settings of any mode, defaults to the active one
-            Header("Mode", y);
+            // Profile picker: edit the settings of any profile (defaults to the active one), manage user profiles
+            Header("Profile", y);
             y += 24;
-            int tw = (Inner - 2 * 8) / 3;
-            for (int i = 0; i < Modes.Count; i++)
+            const int pb = 62, pg = 6;
+            _profileCombo = new ComboBox
             {
-                int mode = i;
-                _modeTabs[i] = Button(Modes.Names[i], M + i * (tw + 8), y, tw, 32);
-                _modeTabs[i].BorderColor = Modes.Colors[i];
-                _modeTabs[i].Click += (_, _) => LoadMode(mode);
-            }
-            y += 32 + 14;
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                Location = new Point(M, y + 4),
+                Size = new Size(Inner - 4 * (pb + pg), 24),
+            };
+            _profileCombo.SelectedIndexChanged += (_, _) =>
+            {
+                if (!_loading && _profileCombo.SelectedItem is ProfileItem p) LoadMode(p.Id);
+            };
+            Controls.Add(_profileCombo);
+            int bx = M + Inner - 4 * pb - 3 * pg;
+            _useButton = Button("Use", bx, y, pb, 30);
+            _useButton.Click += (_, _) => ModeControl.SetMode(_editMode);
+            var newButton = Button("New…", bx + (pb + pg), y, pb, 30);
+            newButton.Secondary = true;
+            newButton.Click += (_, _) => NewProfile();
+            _renameButton = Button("Rename", bx + 2 * (pb + pg), y, pb, 30);
+            _renameButton.Secondary = true;
+            _renameButton.Click += (_, _) => RenameProfile();
+            _deleteButton = Button("Delete", bx + 3 * (pb + pg), y, pb, 30);
+            _deleteButton.Secondary = true;
+            _deleteButton.Click += (_, _) => DeleteProfile();
+            y += 30 + 14;
 
             // ---------- Fan curve ----------
             Header("Fan", y);
@@ -73,16 +98,15 @@ namespace FwHelper.UI
             Controls.Add(_editor);
             y += 230 + 6;
 
-            var reset = Button("Reset curve", W - M - 110, y, 110, 28);
+            var reset = Button("Reset curve", W - M - 100, y, 100, 28);
             reset.Secondary = true;
-            reset.Click += (_, _) =>
-            {
-                var def = FanCurve.Default(_editMode);
-                _editor.Curve = def;
-                Modes.SetCurve(_editMode, def);
-                if (_editMode == ModeControl.CurrentMode) ModeControl.ApplyFan();
-            };
-            var hint = Label("Drag points to edit. CPU ≥95°C or a hot battery overrides it.", M, y + 6, Inner - 120);
+            reset.Click += (_, _) => UseCurve(FanCurve.Default(Modes.Base(_editMode)));
+            var curves = Button("Curves ▾", W - M - 100 - 8 - 90, y, 90, 28);
+            curves.Secondary = true;
+            curves.Click += (_, _) => ShowCurvesMenu(curves);
+            _tip.SetToolTip(curves, "Save this curve under a name, or load a saved one");
+            var hint = Label("Drag points to edit. CPU ≥95°C or a hot battery overrides it.", M, y + 6, Inner - 206);
+            _tip.SetToolTip(hint, hint.Text);
             hint.Tag = "dim";
             y += 28 + 14;
 
@@ -90,6 +114,7 @@ namespace FwHelper.UI
             Header("Windows power mode", y);
             y += 24;
             string[] overlayNames = { "Efficiency", "Balanced", "Performance" };
+            int tw = (Inner - 2 * 8) / 3;
             for (int i = 0; i < 3; i++)
             {
                 int overlay = i;
@@ -187,12 +212,28 @@ namespace FwHelper.UI
 
         private void LoadMode(int mode)
         {
+            if (!Modes.Exists(mode)) mode = ModeControl.CurrentMode;
             _editMode = mode;
-            for (int i = 0; i < Modes.Count; i++) _modeTabs[i].Activated = i == mode;
-            Text = $"Fans + Power · {Modes.Name(mode)}{(mode == ModeControl.CurrentMode ? " (active)" : "")}";
+            bool active = mode == ModeControl.CurrentMode;
+            Text = $"Fans + Power · {Modes.Name(mode)}{(active ? " (active)" : "")}";
+
+            _loading = true;
+            _profileCombo.Items.Clear();
+            foreach (int id in Modes.All())
+            {
+                var item = new ProfileItem(id, Modes.Name(id) + (id == ModeControl.CurrentMode ? "  (active)" : ""));
+                _profileCombo.Items.Add(item);
+                if (id == mode) _profileCombo.SelectedItem = item;
+            }
+            _loading = false;
+
+            // Hidden rather than disabled: RButton draws disabled text twice
+            _useButton.Visible = !active;
+            _useButton.BorderColor = Modes.ColorOf(mode);
+            _renameButton.Visible = _deleteButton.Visible = !Modes.IsBuiltIn(mode);
 
             _customFan.Checked = Modes.IsCustomFan(mode);
-            _editor.LineColor = Modes.Colors[mode];
+            _editor.LineColor = Modes.ColorOf(mode);
             _editor.Curve = Modes.GetCurve(mode);
             _editor.Enabled = _customFan.Checked;
 
@@ -201,11 +242,83 @@ namespace FwHelper.UI
             _pl2.SetValueSilently(Modes.GetPL2(mode));
             _pl1Label.Text = $"Sustained (PL1): {_pl1.Value}W";
             _pl2Label.Text = $"Boost (PL2): {_pl2.Value}W";
-            _pl1.AccentColor = _pl2.AccentColor = Modes.Colors[mode];
+            _pl1.AccentColor = _pl2.AccentColor = Modes.ColorOf(mode);
 
             VisualiseOverlay();
             VisualisePowerLimits();
             RefreshLive();
+        }
+
+        // ---------- Profiles ----------
+
+        private void NewProfile()
+        {
+            string? name = PromptForm.Ask(this, "New profile", $"Copy of {Modes.Name(_editMode)}. Name:", $"My {Modes.Name(_editMode)}");
+            if (name is null) return;
+            LoadMode(Modes.Create(name, _editMode));
+        }
+
+        private void RenameProfile()
+        {
+            if (Modes.IsBuiltIn(_editMode)) return;
+            string? name = PromptForm.Ask(this, "Rename profile", "Name:", Modes.Name(_editMode));
+            if (name is null || !Modes.Rename(_editMode, name)) return;
+            AfterProfileListChanged();
+        }
+
+        private void DeleteProfile()
+        {
+            if (Modes.IsBuiltIn(_editMode)) return;
+            if (MessageBox.Show(this, $"Delete profile \"{Modes.Name(_editMode)}\"?", "Delete profile",
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            int deleted = _editMode;
+            Modes.Delete(deleted);
+            _editMode = ModeControl.CurrentMode == deleted ? Modes.Balanced : ModeControl.CurrentMode;
+            ModeControl.OnProfileDeleted(deleted); // switches away if it was active, which reloads this form
+            AfterProfileListChanged();
+        }
+
+        private void AfterProfileListChanged()
+        {
+            LoadMode(_editMode);
+            Program.SettingsForm.VisualiseMode(); // header shows the active profile's name
+        }
+
+        // ---------- Named curves ----------
+
+        private void UseCurve(FanCurve curve)
+        {
+            _editor.Curve = curve;
+            Modes.SetCurve(_editMode, curve);
+            if (_editMode == ModeControl.CurrentMode) ModeControl.ApplyFan();
+        }
+
+        private void ShowCurvesMenu(Control anchor)
+        {
+            var menu = new ContextMenuStrip();
+            menu.Items.Add("Save this curve as…", null, (_, _) =>
+            {
+                string? name = PromptForm.Ask(this, "Save fan curve", "Name:", Modes.Name(_editMode));
+                if (name is not null) FanCurveLibrary.Save(name, _editor.Curve);
+            });
+
+            var saved = FanCurveLibrary.All();
+            if (saved.Count > 0)
+            {
+                menu.Items.Add(new ToolStripSeparator());
+                foreach (var (name, curve) in saved)
+                {
+                    var item = new ToolStripMenuItem(name, null, (_, _) => UseCurve(curve)) { ToolTipText = curve.ToString() };
+                    menu.Items.Add(item);
+                }
+                var delete = new ToolStripMenuItem("Delete saved curve");
+                foreach (var (name, _) in saved)
+                    delete.DropDownItems.Add(name, null, (_, _) => FanCurveLibrary.Delete(name));
+                menu.Items.Add(new ToolStripSeparator());
+                menu.Items.Add(delete);
+            }
+            menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
+            menu.Show(anchor, new Point(0, anchor.Height));
         }
 
         private void VisualiseOverlay()
@@ -251,6 +364,12 @@ namespace FwHelper.UI
             if (!active) return "EC auto";
             if (duty < 0) return status;
             return status == "curve" ? $"duty {duty}%" : $"duty {duty}% · {status}";
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            ActiveControl = null; // don't open with the profile picker focused and highlighted
         }
 
         protected override void OnVisibleChanged(EventArgs e)

@@ -9,8 +9,8 @@ and no admin rights needed for the core features.
 
 | Area | What it does | How |
 |---|---|---|
-| Performance modes | Silent / Balanced / Turbo, remembered separately for AC and battery, `Ctrl+Shift+F5` to cycle | Windows power mode (Intel DTT/IPF follows it), per-mode fan curve, optional PL1/PL2 |
-| Fans | Custom 8-point fan curve per mode, or Framework EC automatic | EC `PWM_SET_FAN_DUTY` / `THERMAL_AUTO_FAN_CTRL` |
+| Performance modes | Silent / Balanced / Turbo plus your own named profiles, remembered separately for AC and battery, `Ctrl+Shift+F5` to cycle | Windows power mode (Intel DTT/IPF follows it), per-mode fan curve, optional PL1/PL2 |
+| Fans | Custom 8-point fan curve per profile, or Framework EC automatic; save and reuse named curves | EC `PWM_SET_FAN_DUTY` / `THERMAL_AUTO_FAN_CTRL` |
 | Sensors | CPU (PECI), board, DDR, battery temps, fan RPM, battery W | EC memory map |
 | Battery | Charge limit 50–100%, health, cycles | Framework EC `CHARGE_LIMIT_CONTROL` (0x3E03) |
 | Display | 60Hz / max Hz / Auto (max on AC, 60Hz on battery) | `ChangeDisplaySettingsEx` |

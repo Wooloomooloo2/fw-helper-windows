@@ -23,3 +23,4 @@ When a Windows ADR refers to a Linux ADR, it says "Linux ADR NNNN". The two seri
 | [0009](0009-fan-safety-parity-and-guardian.md) | Fan safety at Linux parity: pure controller, watchdog, guardian process | Accepted |
 | [0010](0010-power-limits-keep-and-restore.md) | Power limits: measured defaults, re-assert against firmware, restore on exit | Accepted |
 | [0011](0011-monitoring-via-pdh-and-ec.md) | Monitoring: PDH counters + EC, sampled on demand, recorded as CSV | Accepted |
+| [0012](0012-user-profiles-and-named-curves.md) | User profiles with stable ids, named fan-curve library | Accepted |

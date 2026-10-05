@@ -15,11 +15,15 @@ namespace FwHelper.Features
 
         private static string PowerKey => PowerNative.IsOnAC() ? "mode_ac" : "mode_dc";
 
-        public static int SavedMode() => Math.Clamp(AppConfig.Get(PowerKey, Modes.Balanced), 0, Modes.Count - 1);
+        public static int SavedMode()
+        {
+            int mode = AppConfig.Get(PowerKey, Modes.Balanced);
+            return Modes.Exists(mode) ? mode : Modes.Balanced;
+        }
 
         public static void SetMode(int mode, bool save = true)
         {
-            mode = Math.Clamp(mode, 0, Modes.Count - 1);
+            if (!Modes.Exists(mode)) mode = Modes.Balanced;
             CurrentMode = mode;
             if (save) AppConfig.Set(PowerKey, mode);
 
@@ -32,16 +36,13 @@ namespace FwHelper.Features
             ModeChanged?.Invoke();
         }
 
-        public static void CycleMode()
+        /// <summary>Same order as G-Helper's Fn+F5 (Balanced → Turbo → Silent), then user profiles.</summary>
+        public static void CycleMode() => SetMode(ProfileList.Next(CurrentMode, Modes.UserIds()));
+
+        /// <summary>After a profile is deleted: if it was active, fall back to what's saved for this power source.</summary>
+        public static void OnProfileDeleted(int mode)
         {
-            // Same order as G-Helper's Fn+F5: Balanced → Turbo → Silent
-            int next = CurrentMode switch
-            {
-                Modes.Balanced => Modes.Turbo,
-                Modes.Turbo => Modes.Silent,
-                _ => Modes.Balanced,
-            };
-            SetMode(next);
+            if (CurrentMode == mode) AutoMode();
         }
 
         /// <summary>Re-apply saved mode for the current power source (startup, AC plug/unplug, resume).</summary>

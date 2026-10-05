@@ -151,13 +151,6 @@ namespace FwHelper
         private static ContextMenuStrip BuildContextMenu()
         {
             var menu = new ContextMenuStrip();
-            var modeItems = new ToolStripMenuItem[Modes.Count];
-            for (int i = 0; i < Modes.Count; i++)
-            {
-                int mode = i;
-                modeItems[i] = new ToolStripMenuItem(Modes.Names[i], null, (_, _) => ModeControl.SetMode(mode));
-                menu.Items.Add(modeItems[i]);
-            }
             menu.Items.Add(new ToolStripSeparator());
             foreach (int limit in new[] { 60, 80, 100 })
                 menu.Items.Add(new ToolStripMenuItem($"Charge limit {limit}%", null, (_, _) => BatteryControl.SetLimit(limit)));
@@ -170,7 +163,8 @@ namespace FwHelper
             menu.Items.Add("Quit", null, (_, _) => Exit());
             menu.Opening += (_, _) =>
             {
-                for (int i = 0; i < Modes.Count; i++) modeItems[i].Checked = i == ModeControl.CurrentMode;
+                // Profiles can be added or renamed at any time: rebuild them on every open
+                ProfileMenu.Fill(menu.Items, 0);
                 stopRecording.Visible = Telemetry.IsRecording;
             };
             return menu;

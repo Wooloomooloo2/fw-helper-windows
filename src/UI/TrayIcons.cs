@@ -21,7 +21,7 @@ namespace FwHelper.UI
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                var color = Modes.Colors[Math.Clamp(mode, 0, Modes.Count - 1)];
+                var color = Modes.ColorOf(mode);
                 float pad = size / 16f;
                 using var path = RButton.RoundedRect(new RectangleF(pad, pad, size - 2 * pad - 1, size - 2 * pad - 1), size / 5f);
                 using var brush = new SolidBrush(color);

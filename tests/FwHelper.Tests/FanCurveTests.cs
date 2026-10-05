@@ -60,7 +60,7 @@ namespace FwHelper.Tests
         [Fact]
         public void Defaults_exist_for_every_mode_and_end_at_full_duty()
         {
-            for (int mode = 0; mode < Modes.Count; mode++)
+            for (int mode = 0; mode < Modes.BuiltInCount; mode++)
                 Assert.Equal(100, FanCurve.Default(mode).Duties[^1]);
         }
 
