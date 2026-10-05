@@ -57,9 +57,11 @@ namespace FwHelper.Helpers
             {
                 using var pipe = new NamedPipeClientStream(".", CommandProtocol.PipeName, PipeDirection.InOut, PipeOptions.CurrentUserOnly);
                 pipe.Connect(500);
-                using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
-                writer.WriteLine(CommandProtocol.Encode(command));
-                using var reader = new StreamReader(pipe, Encoding.UTF8);
+                // Dispose the writer before reading: once the server has replied and closed its end, disposing a writer
+                // flushes into a broken pipe and throws, which would lose the reply we already have
+                using (var writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, leaveOpen: true))
+                    writer.WriteLine(CommandProtocol.Encode(command));
+                using var reader = new StreamReader(pipe, Encoding.UTF8, false, 1024, leaveOpen: true);
                 return reader.ReadToEnd();
             }
             catch (TimeoutException)

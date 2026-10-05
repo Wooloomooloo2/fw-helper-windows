@@ -35,11 +35,15 @@ namespace FwHelper.Helpers
                     var command = CommandProtocol.Decode(reader.ReadLine());
                     string reply = command is null ? "error: unknown command" : Run(command);
                     writer.Write(reply);
+                    writer.Flush();
+                    // Closing straight away can drop the unread reply: wait until the client has read it. No explicit
+                    // Disconnect(): the writer is disposed after this and would flush into a disconnected pipe
+                    try { pipe.WaitForPipeDrain(); } catch (IOException) { /* client already gone */ }
                 }
                 catch (Exception ex)
                 {
                     Logger.WriteLine("Command server: " + ex.Message);
-                    Thread.Sleep(1000);
+                    Thread.Sleep(100); // short: no pipe exists while we wait, so clients would fail
                 }
             }
         }

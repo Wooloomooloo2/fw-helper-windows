@@ -33,7 +33,9 @@ exclusive full-screen. That would need an in-game hook, like MangoHud on Linux, 
 
 ## Consequences
 
-- Verified 2026-10-05: `--status` against the EC with no pipe server, argument errors and exit codes, and the running tray app left untouched.
-  **Not yet verified:** the pipe path against a running new build. That is on the test plan.
+- Verified 2026-10-05: `--status` against the EC with no pipe server, argument errors and exit codes, the running tray app left untouched,
+  and the pipe path against a running 0.2.0 build (8 back-to-back calls). Two pipe bugs were found doing this: a `StreamWriter` disposed
+  after the other end has closed flushes into a broken pipe and throws. On the client that threw away a reply that had already arrived;
+  on the server it caused a 1 s outage after every call. Keep writers scoped before reading, and drain before closing.
 - The pipe is a new input to the app. The verb list, validation and per-user ACL are what keep it as narrow as the GUI.
 - Parsing, the wire format and profile resolution are pure and unit-tested (`CliTests`).

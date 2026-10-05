@@ -33,8 +33,8 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 ## Current state (2026-10-05)
 
 Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 144 unit tests pass, and CI is green. `publish/` is gitignored.
-The user is running a build from `e57f79b` (fan safety only), from `publish\`. **The machine can't be restarted for a few hours**,
-so don't run anything that closes their FW-Helper (`--hwtest`, starting a second instance). Read-only EC probes from a throwaway test are fine.
+The user is running **0.2.0** from `publish\` (republished 2026-10-05 13:19, with the pipe fixes). Before relaunching it, ask, or at
+least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -49,7 +49,7 @@ so don't run anything that closes their FW-Helper (`--hwtest`, starting a second
 | **Custom fan curve loop** (1 Hz, hysteresis, stall band, battery guard, Tjmax release, PECI-only input) | 🟡 unit-tested against a fake EC; **not run on hardware** since the rewrite | `FanLoopTests`, `FanControllerTests` |
 | Fan watchdog (5 s) | 🟡 unit-tested against a fake EC | `FanLoopTests` |
 | Learned EC floor ("never quieter than the EC") | 🟡 unit-tested; learning not yet seen live | ADR 0013 |
-| Guardian process (hard-kill fan restore) | ✅ verified with `Stop-Process -Force` on a dummy parent | log 2026-10-04 21:57; about 28 MB working set |
+| Guardian process (hard-kill fan restore) | ✅ verified with `Stop-Process -Force` on a dummy parent and on the real app (2026-10-05) | log 2026-10-04 21:57; about 28 MB working set |
 | Release fan on suspend / reapply on resume | 🟡 code only | no Suspend/Resume entry in the log yet |
 | **PL1/PL2 via PawnIO** | 🟡 **never run**. Measured defaults, re-assert, restore on exit (ADR 0010) | "Requires admin", then "PawnIO not installed". `--hwtest pl` is ready |
 | CPU/GPU watts + throttle reasons (PawnIO) | 🟡 code + pure tests only | ADR 0011 amendment |
@@ -58,7 +58,7 @@ so don't run anything that closes their FW-Helper (`--hwtest`, starting a second
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
 | Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
-| CLI (`--status` etc. over a named pipe) + overlay window | 🟡 `--status` fallback verified on hardware; pipe path not yet run against a new build | ADR 0015 |
+| CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
 | Unit tests | ✅ 144: fan loop (fake EC), controller, floor, curve, PL keeper, RAPL, telemetry, profiles, CLI | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
