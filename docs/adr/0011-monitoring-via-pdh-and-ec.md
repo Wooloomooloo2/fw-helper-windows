@@ -50,3 +50,18 @@ header and reference lines for PL1, the 95 °C full-fan line and the battery gua
   change, add a version-tolerant reader rather than silently misreading.
 - The CPU clock is an all-core average, so it reads lower than the busiest core under a single-threaded load.
   Linux found the same trap (flat mean vs `Bzy_MHz`).
+
+## Amendment (2026-10-05): CPU/GPU watts and throttle reasons via PawnIO
+
+When PawnIO is available, telemetry also reads:
+- **CPU watts** from the core energy counter (PP0, `0x639`);
+- **GPU watts** from the uncore/graphics counter (PP1, `0x641`);
+- **throttle reasons** from `0x64F` (core), `0x6B0` (graphics) and `0x6B1` (ring), shown on the clock card ("limited by core: EDP · gpu: PL1").
+
+Linux confirmed all of these registers on the 358H. The bit names come from the Intel SDM, and only bits with a stable meaning are named; any others show as "bit N".
+
+- Each consumer now has its own `RaplEnergy` meter, so the Monitor and Fans + Power windows no longer shorten each other's measuring interval.
+  The meter follows Linux ADR 0009's rules: it handles one counter wrap, and drops values above 200 W or gaps over 60 s.
+- The CSV gained `cpu_w`, `gpu_w` and `throttle` at the end. **Readers now map columns by header name**, so sessions recorded with the
+  21-column layout still open. New columns must only ever be added at the end.
+- Still untested on hardware: none of this has run with PawnIO yet. `--hwtest pl` now also records the core limit reasons under load.

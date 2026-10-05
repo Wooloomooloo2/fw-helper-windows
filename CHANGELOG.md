@@ -22,7 +22,9 @@
 
 ### Monitoring (ADR 0011)
 - New **Monitor** window: live charts of CPU/GPU load, CPU clock, power, temperatures, fan and memory. No admin needed.
-- Sessions can be recorded to CSV and opened again later.
+- Sessions can be recorded to CSV and opened again later. Columns are read by name, so older recordings still open.
+- With PawnIO and admin: CPU and GPU watts, plus what is limiting the clocks (EDP, PL1, thermal...).
+
 
 ### Profiles (ADR 0012)
 - You can create **your own profiles** next to Silent/Balanced/Turbo, and rename or delete them.
@@ -32,8 +34,8 @@
 
 ### Tooling
 - `--hwtest fansweep|watchdog|pl|all` runs targeted hardware experiments.
-- CI builds with warnings as errors, runs 103 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
-- Project documentation: `CLAUDE.md`, ADRs 0001–0013, the hardware baseline, the feature comparison with the Linux version, and the test plan.
+- CI builds with warnings as errors, runs 116 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
+- Project documentation: `CLAUDE.md`, ADRs 0001–0014, the hardware baseline, the feature comparison with the Linux version, and the test plan.
 
 ## 0.1.0 (2026-10-03)
 

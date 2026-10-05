@@ -134,9 +134,33 @@ namespace FwHelper.Features
                 batt is { Present: true } ? batt.Percent : null,
                 // System draw is only measurable from the battery while discharging
                 batt is { Present: true, Discharging: true } ? -batt.Watts : null,
-                IntelPowerLimits.IsAvailable ? IntelPowerLimits.GetPackagePower() : null,
+                Watts(_package, IntelPowerLimits.MSR_PKG_ENERGY_STATUS),
                 Modes.IsPowerLimit(mode) && IntelPowerLimits.IsAvailable
-                    ? Math.Clamp(Modes.GetPL1(mode), PowerLimitControl.MinPL1, PowerLimitControl.MaxPL1) : null);
+                    ? Math.Clamp(Modes.GetPL1(mode), PowerLimitControl.MinPL1, PowerLimitControl.MaxPL1) : null,
+                Watts(_cores, IntelPowerLimits.MSR_PP0_ENERGY_STATUS),
+                Watts(_uncore, IntelPowerLimits.MSR_PP1_ENERGY_STATUS),
+                Throttle());
+        }
+
+        // Our own meters: sharing one with the Fans + Power window would split the measuring interval
+        private static readonly RaplEnergy _package = new(), _cores = new(), _uncore = new();
+
+        private static double? Watts(RaplEnergy meter, uint msr) =>
+            IntelPowerLimits.ReadEnergy(msr) is uint raw ? meter.Next(raw, IntelPowerLimits.EnergyUnit, Environment.TickCount64) : null;
+
+        /// <summary>"core: EDP · gpu: PL1" style summary of what is limiting clocks right now; null without PawnIO, "" if nothing.</summary>
+        private static string? Throttle()
+        {
+            if (IntelPowerLimits.Read(PerfLimitReasons.MSR_CORE_PERF_LIMIT_REASONS) is not ulong core) return null;
+            var parts = new List<string>();
+            void Add(string domain, ulong? value)
+            {
+                if (value is ulong v && PerfLimitReasons.Decode(v) is { Length: > 0 } s) parts.Add($"{domain}: {s}");
+            }
+            Add("core", core);
+            Add("gpu", IntelPowerLimits.Read(PerfLimitReasons.MSR_GRAPHICS_PERF_LIMIT_REASONS));
+            Add("ring", IntelPowerLimits.Read(PerfLimitReasons.MSR_RING_PERF_LIMIT_REASONS));
+            return string.Join(" · ", parts);
         }
 
         private sealed class Handle : IDisposable

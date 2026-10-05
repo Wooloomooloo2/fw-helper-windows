@@ -12,13 +12,11 @@ namespace FwHelper.Hardware
     {
         private const uint MSR_RAPL_POWER_UNIT = 0x606;
         private const uint MSR_PKG_POWER_LIMIT = 0x610;
-        private const uint MSR_PKG_ENERGY_STATUS = 0x611;
+        public const uint MSR_PKG_ENERGY_STATUS = 0x611;
 
         private static readonly PawnIOWrapper _io = new();
         private static double _powerUnit;   // watts per LSB
         private static double _energyUnit;  // joules per LSB
-        private static uint _lastEnergy;
-        private static long _lastTick;
 
         public static string Status { get; private set; } = "Not initialized";
         public static bool IsAvailable { get; private set; }
@@ -107,20 +105,29 @@ namespace FwHelper.Hardware
             $"PL1 {(v & 0x7FFF) * _powerUnit:0}W{((v >> 15) & 1) switch { 1 => "", _ => " off" }}, " +
             $"PL2 {((v >> 32) & 0x7FFF) * _powerUnit:0}W{((v >> 47) & 1) switch { 1 => "", _ => " off" }}";
 
-        /// <summary>CPU package power from the RAPL energy counter (needs two calls to produce a value).</summary>
+        public const uint MSR_PP0_ENERGY_STATUS = 0x639; // cores
+        public const uint MSR_PP1_ENERGY_STATUS = 0x641; // uncore / integrated graphics
+
+        private static readonly RaplEnergy _packageMeter = new();
+
+        /// <summary>
+        /// CPU package power for the Fans + Power window and --hwtest (needs two calls to produce a value).
+        /// Other consumers keep their own <see cref="RaplEnergy"/> per counter and use <see cref="ReadEnergy"/>.
+        /// </summary>
         public static float? GetPackagePower()
         {
-            if (!IsAvailable || !ReadMsr(MSR_PKG_ENERGY_STATUS, out ulong raw)) return null;
-            uint energy = (uint)raw;
-            long tick = Environment.TickCount64;
-            if (_lastTick == 0) { _lastEnergy = energy; _lastTick = tick; return null; }
-            double seconds = (tick - _lastTick) / 1000.0;
-            if (seconds < 0.05) return null;
-            double joules = unchecked(energy - _lastEnergy) * _energyUnit;
-            _lastEnergy = energy;
-            _lastTick = tick;
-            return (float)(joules / seconds);
+            lock (_packageMeter)
+                return ReadEnergy(MSR_PKG_ENERGY_STATUS) is uint raw
+                    && _packageMeter.Next(raw, _energyUnit, Environment.TickCount64) is double w ? (float)w : null;
         }
+
+        public static double EnergyUnit => _energyUnit;
+
+        /// <summary>Raw 32-bit energy counter (package 0x611, PP0 0x639, PP1 0x641), or null without PawnIO.</summary>
+        public static uint? ReadEnergy(uint msr) => IsAvailable && ReadMsr(msr, out ulong raw) ? (uint)raw : null;
+
+        /// <summary>Raw MSR read for diagnostics (perf limit reasons); null without PawnIO.</summary>
+        public static ulong? Read(uint msr) => IsAvailable && ReadMsr(msr, out ulong v) ? v : null;
 
         private static bool ReadMsr(uint msr, out ulong value)
         {

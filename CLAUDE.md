@@ -30,54 +30,59 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 | `README.md` | User-facing |
 | `CHANGELOG.md` | Per-version changes; release notes link here |
 
-## Current state (2026-10-04)
+## Current state (2026-10-05)
 
-Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 83 unit tests pass, and CI is green. `publish/` is gitignored.
-The user is running a build from `e57f79b` (fan safety only), from `publish\`.
+Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 116 unit tests pass, and CI is green. `publish/` is gitignored.
+The user is running a build from `e57f79b` (fan safety only), from `publish\`. **The machine can't be restarted for a few hours**,
+so don't run anything that closes their FW-Helper (`--hwtest`, starting a second instance). Read-only EC probes from a throwaway test are fine.
 
 | Feature | Status | Evidence |
 |---|---|---|
 | EC connection (no admin) | ✅ verified | every log session, `admin=False` |
 | Sensors: 5 temps, fan rpm, battery | ✅ verified | selftest 2026-10-03 |
+| EC fan duty / ownership / thermal ramps (read-only) | ✅ verified | read-only probe 2026-10-05; hardware-baseline.md |
 | Charge limit 50–100 % | ✅ set/readback; 🟡 actual charge stop not observed on Windows | 85 % held across app restarts |
 | Keyboard backlight, power LED | ✅ verified | selftest |
 | Modes → Windows power overlay, AC/DC memory | ✅ verified | many plug/unplug switches in the log |
 | Refresh rate 60/120/auto | ✅ verified | log |
 | Fixed fan duty + hand back to EC | ✅ verified | selftest: 100 % → 7281 rpm, 20 % → 2635 rpm, auto → 0 |
-| **Custom fan curve loop** (1 Hz, hysteresis, stall band, battery guard, Tjmax release) | 🟡 unit-tested; **not run on hardware** since the rewrite | `tests/FwHelper.Tests` |
-| Fan watchdog (5 s) | 🟡 code only | |
+| **Custom fan curve loop** (1 Hz, hysteresis, stall band, battery guard, Tjmax release, PECI-only input) | 🟡 unit-tested against a fake EC; **not run on hardware** since the rewrite | `FanLoopTests`, `FanControllerTests` |
+| Fan watchdog (5 s) | 🟡 unit-tested against a fake EC | `FanLoopTests` |
+| Learned EC floor ("never quieter than the EC") | 🟡 unit-tested; learning not yet seen live | ADR 0013 |
 | Guardian process (hard-kill fan restore) | ✅ verified with `Stop-Process -Force` on a dummy parent | log 2026-10-04 21:57; about 28 MB working set |
 | Release fan on suspend / reapply on resume | 🟡 code only | no Suspend/Resume entry in the log yet |
-| **PL1/PL2 via PawnIO** | 🟡 **never run**. Defaults moved to the measured ceiling, re-asserted against firmware, original restored on exit (ADR 0010) | "Requires admin", then "PawnIO not installed". `--hwtest pl` is ready |
+| **PL1/PL2 via PawnIO** | 🟡 **never run**. Measured defaults, re-assert, restore on exit (ADR 0010) | "Requires admin", then "PawnIO not installed". `--hwtest pl` is ready |
+| CPU/GPU watts + throttle reasons (PawnIO) | 🟡 code + pure tests only | ADR 0011 amendment |
 | Hardware test mode `--hwtest fansweep\|watchdog\|pl\|all` | 🟡 built, not yet run | `docs/hardware-test-plan.md` |
 | CI (GitHub Actions: build `-warnaserror`, test, publish artifact) | ✅ green | `.github/workflows/ci.yml` |
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
 | Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
-| Unit tests | 🟡 FanController, FanCurve, PowerLimitKeeper, telemetry, profiles/curve library (83) | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 116: fan loop (fake EC), controller, floor, curve, PL keeper, RAPL, telemetry, profiles | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
-2026-10-04: docs were set up (ADRs 0001–0008). Then roadmap item 1, fan safety parity, was built (ADR 0009):
-`FanController` (pure, tested), a 1 Hz loop thread, a watchdog thread and the `--guard` guardian process. The UI now shows why
-the fan is overriding the curve ("battery guard", "CPU ≥95°C", "EC: …").
+2026-10-04: docs were set up (ADRs 0001–0008), then fan safety parity was built (ADR 0009).
 
 2026-10-05: **The user's direction is to build as much as possible and run the hardware tests together later.** Don't stop to
-test on hardware. Add each new check to `docs/hardware-test-plan.md`. Done so far today: CI and more unit tests, the
-`--hwtest` mode (fansweep, watchdog, pl), the power-limit rework (ADR 0010), monitoring with recording (ADR 0011), and user
-profiles with named fan curves (ADR 0012).
+test on hardware. Add each new check to `docs/hardware-test-plan.md`. Built today:
+- CI and the draft-release workflow;
+- `--hwtest`;
+- the power-limit rework (ADR 0010);
+- monitoring and recording (ADR 0011, plus its PawnIO amendment);
+- profiles and named curves (ADR 0012);
+- the learned EC floor, a PECI-only control input and a testable `FanLoop` (ADR 0013);
+- the proposed service split (ADR 0014).
 
-Release prep is done: version **0.2.0**, `CHANGELOG.md`, and `.github/workflows/release.yml` (pushing a `v*` tag creates a **draft**
-release with the exe and zip). **No tag has been pushed yet. Tag only after the hardware test plan has passed.**
+**No tag has been pushed. Tag `v0.2.0` only after the hardware test plan has passed.**
 
-**Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts,
-then tag `v0.2.0`. Remaining build ideas are in `docs/feature-parity.md`: learned firmware floor, CPU/GPU watt split and throttle
-reasons via PawnIO, an EC fake so `FanControl` can be tested, and the service architecture question. After that, run the bundled hardware test plan with the user.
-The user has not yet given their feedback on v0.1.0.
+**Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts
+([W] tags in hardware-baseline.md), settle open questions 1 and 2 and ADR 0014, then tag. Remaining gaps are listed in
+`docs/feature-parity.md` → Roadmap. The user has not yet given their feedback on v0.1.0.
 
 Open questions:
-1. Fan scale: Windows 100 % → 7.3k rpm, but Linux full duty → about 5.2k. Which is right?
-2. Does a PawnIO write to MSR `0x610` bind PL1 at all? Linux says the MMIO/MCHBAR copy governs.
+1. Fan scale: Windows 100 % → 7.3k rpm, but Linux full duty → about 5.2k. Which is right? `--hwtest fansweep`
+2. Does a PawnIO write to MSR `0x610` bind PL1 at all? Linux says the MMIO/MCHBAR copy governs. `--hwtest pl`
 3. ~~Can the EC's own auto-mode duty be read on Windows?~~ **Yes** (`0x0027`, 2026-10-05). The floor is built (ADR 0013).
 
 ## Layout
@@ -93,12 +98,15 @@ src/
     IntelMSR.bin          embedded PawnIO module
     Pdh.cs                performance counter (PDH) P/Invoke, English paths, wildcard arrays
     SystemMetrics.cs      CPU utility/effective MHz, GPU busiest engine + shared mem, RAM
+    RaplEnergy.cs         watts from RAPL counters (pure), PerfLimitReasons decoder
   Features/
     Modes.cs              profiles: built-ins 0–2, user ids 3+; per-profile config accessors; ProfileList (pure helpers)
     ModeControl.cs        apply a profile; AC/DC memory; Ctrl+Shift+F5 cycle
     FanCurveLibrary.cs    named curves in one config string
     FanController.cs      pure per-tick fan decision: hysteresis, ramp, stall band, CPU/battery overrides (no I/O, unit-tested)
-    FanControl.cs         1 Hz loop thread + watchdog thread, EC writes, hand-back, Status for the UI
+    FanLoop.cs            1 Hz loop + watchdog threads, floor learning; hardware only via IFanHardware (FanHardware.cs)
+    FanControl.cs         static front: the app's FanLoop on the real EC, floor persistence
+    FirmwareFloor.cs      learned "never quieter than the EC" floor (pure)
     FanCurve.cs           8-point curve, parse/normalize/interpolate
     PowerLimitControl.cs  per-mode PL apply, PowerLimitKeeper (pure re-assert policy), restore on exit
     Telemetry.cs          1 Hz on-demand sampler (ref-counted Use()), 300-sample history, recording
@@ -111,7 +119,7 @@ src/
   UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, FanCurveEditor, ProfileMenu, PromptForm,
                           RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
-  FwHelper.Tests/         xunit; FanControllerTests (safety rules + random-walk invariants)
+  FwHelper.Tests/         xunit, no hardware: FakeFan (fake EC) drives FanLoop; never touches AppConfig
 ```
 
 ## Commands
@@ -168,8 +176,7 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
   pure (`ProfileList`, `FanController`, `PowerLimitKeeper`...) and test that.
 - A disabled `RButton` used to draw its text twice (fixed 2026-10-05 in `OnPaint`). The profile buttons are hidden rather than disabled anyway.
 - Profile ids are config keys. Never renumber them, and never reuse a deleted one (ADR 0012).
-- `IntelPowerLimits.GetPackagePower()` keeps one shared last-energy state. With two callers (Monitor and Fans + Power), each one's
-  interval gets shorter. The readings are still correct averages.
+- Energy counters: give every consumer its own `RaplEnergy` meter. A shared one splits the measuring interval (fixed 2026-10-05; `GetPackagePower()` is only for Fans + Power and --hwtest).
 
 ## Conventions
 

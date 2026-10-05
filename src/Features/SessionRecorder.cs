@@ -58,9 +58,10 @@ namespace FwHelper.Features
         public static List<TelemetrySample> Load(string path)
         {
             var lines = File.ReadAllLines(path);
-            if (lines.Length == 0 || lines[0] != TelemetrySample.CsvHeader)
-                throw new InvalidDataException("Not a FW-Helper session file (header doesn't match this version)");
-            return lines.Skip(1).Select(TelemetrySample.FromCsv).OfType<TelemetrySample>().ToList();
+            // Columns are matched by name, so sessions from older versions (fewer columns) still open
+            var layout = lines.Length > 0 ? TelemetrySample.Layout(lines[0]) : null;
+            if (layout is null) throw new InvalidDataException("Not a FW-Helper session file");
+            return lines.Skip(1).Select(l => TelemetrySample.FromCsv(l, layout)).OfType<TelemetrySample>().ToList();
         }
     }
 }

@@ -12,7 +12,7 @@ namespace FwHelper.UI
         private int _editMode;
         private bool _loading;
         private readonly ComboBox _profileCombo;
-        private readonly RButton _useButton, _renameButton, _deleteButton;
+        private readonly RButton _useButton, _newButton, _renameButton, _deleteButton;
         private readonly ToolTip _tip = new();
 
         private sealed record ProfileItem(int Id, string Label)
@@ -61,9 +61,9 @@ namespace FwHelper.UI
             int bx = M + Inner - 4 * pb - 3 * pg;
             _useButton = Button("Use", bx, y, pb, 30);
             _useButton.Click += (_, _) => ModeControl.SetMode(_editMode);
-            var newButton = Button("New…", bx + (pb + pg), y, pb, 30);
-            newButton.Secondary = true;
-            newButton.Click += (_, _) => NewProfile();
+            _newButton = Button("New…", bx + (pb + pg), y, pb, 30);
+            _newButton.Secondary = true;
+            _newButton.Click += (_, _) => NewProfile();
             _renameButton = Button("Rename", bx + 2 * (pb + pg), y, pb, 30);
             _renameButton.Secondary = true;
             _renameButton.Click += (_, _) => RenameProfile();
@@ -242,6 +242,18 @@ namespace FwHelper.UI
             _useButton.Visible = !active;
             _useButton.BorderColor = Modes.ColorOf(mode);
             _renameButton.Visible = _deleteButton.Visible = !Modes.IsBuiltIn(mode);
+
+            // Pack the visible buttons against the right edge (positions are in already-scaled pixels)
+            int right = ClientSize.Width - _profileCombo.Left; // same margin as the left edge
+            int gap = (int)Math.Round(6 * DeviceDpi / 96f);
+            // Not b.Visible: that reads false for every child until the form itself is shown
+            bool user = !Modes.IsBuiltIn(mode);
+            var shown = new[] { (_deleteButton, user), (_renameButton, user), (_newButton, true), (_useButton, !active) };
+            foreach (var (b, _) in shown.Where(s => s.Item2))
+            {
+                b.Left = right - b.Width;
+                right = b.Left - gap;
+            }
 
             _customFan.Checked = Modes.IsCustomFan(mode);
             _floorCheck.Checked = FanControl.IsFloorEnabled();

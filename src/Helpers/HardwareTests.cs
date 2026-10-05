@@ -139,10 +139,10 @@ namespace FwHelper.Helpers
             if (!IntelPowerLimits.Init()) { r.Line("init: " + IntelPowerLimits.Status); r.Verdict = "skipped (" + IntelPowerLimits.Status + ")"; return; }
 
             r.Line($"status {IntelPowerLimits.Status}, MSR now {IntelPowerLimits.Get()}, overlay {PowerNative.GetOverlayIndex()}");
-            r.Line("phase,setpoint_pl1,msr_after,measured_pkg_w,max_cpu_c");
+            r.Line("phase,setpoint_pl1,msr_after,measured_pkg_w,max_cpu_c,core_limit_reasons");
 
             var baseline = Measure();
-            r.Line($"stock,-,{IntelPowerLimits.Get()},{baseline.watts:0.0},{baseline.maxTemp}");
+            r.Line($"stock,-,{IntelPowerLimits.Get()},{baseline.watts:0.0},{baseline.maxTemp},{baseline.limits}");
             Cool();
 
             var results = new List<(int target, double watts)>();
@@ -150,7 +150,7 @@ namespace FwHelper.Helpers
             {
                 IntelPowerLimits.Set(pl1, pl2);
                 var m = Measure();
-                r.Line($"set,{pl1},{IntelPowerLimits.Get()},{m.watts:0.0},{m.maxTemp}");
+                r.Line($"set,{pl1},{IntelPowerLimits.Get()},{m.watts:0.0},{m.maxTemp},{m.limits}");
                 results.Add((pl1, m.watts));
                 Cool();
             }
@@ -162,7 +162,7 @@ namespace FwHelper.Helpers
         }
 
         /// <summary>45 s all-core load; mean package power over the last 12 s.</summary>
-        private static (double watts, int? maxTemp) Measure()
+        private static (double watts, int? maxTemp, string limits) Measure()
         {
             using var cts = new CancellationTokenSource();
             var workers = Enumerable.Range(0, Environment.ProcessorCount).Select(_ => Task.Factory.StartNew(() =>
@@ -183,9 +183,11 @@ namespace FwHelper.Helpers
                 if (IntelPowerLimits.GetPackagePower() is float w && s >= 33) watts.Add(w);
                 if (t >= 95) break;
             }
+            // Still under load: what is limiting the cores (EDP is Linux's only live reason; PL1 means our limit binds)
+            string limits = IntelPowerLimits.Read(PerfLimitReasons.MSR_CORE_PERF_LIMIT_REASONS) is ulong v ? PerfLimitReasons.Decode(v) : "n/a";
             cts.Cancel();
             Task.WaitAll(workers);
-            return (watts.Count > 0 ? watts.Average() : double.NaN, maxTemp);
+            return (watts.Count > 0 ? watts.Average() : double.NaN, maxTemp, limits);
         }
 
         private static void Cool() => Thread.Sleep(15000);

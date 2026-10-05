@@ -61,10 +61,13 @@ namespace FwHelper.UI
             _clock = Card(1, 0, "CPU clock (effective)");
             _clock.Unit = " MHz";
             _clock.Series.Add(new("CPU", Cpu, s => s.CpuMhz));
+            _clock.Note = s => s.Throttle is { Length: > 0 } t ? "limited by " + t : null;
 
             _power = Card(0, 1, "Power");
             _power.Unit = "W";
             _power.Series.Add(new("Package", Package, s => s.PackageW, "0.0"));
+            _power.Series.Add(new("CPU", Cpu, s => s.CpuW, "0.0"));
+            _power.Series.Add(new("GPU", Gpu, s => s.GpuW, "0.0"));
             _power.Series.Add(new("System", Battery, s => s.BatteryW, "0.0"));
             _power.Note = s => s.PackageW is null ? "package: needs admin + PawnIO" : null;
 

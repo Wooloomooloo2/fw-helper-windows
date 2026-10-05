@@ -24,17 +24,23 @@ namespace FwHelper.Features
         int? BatteryPct,
         double? BatteryW,
         double? PackageW,
-        int? PL1)
+        int? PL1,
+        double? CpuW = null,
+        double? GpuW = null,
+        string? Throttle = null)
     {
+        /// <summary>CSV columns. Readers map by name, so columns can be added at the end without breaking old sessions.</summary>
         public static readonly string[] Columns =
         {
             "time", "mode", "on_ac", "cpu_pct", "cpu_mhz", "gpu_pct", "gpu_engine", "gpu_shared_gb", "mem_used_gb", "mem_total_gb",
             "cpu_c", "battery_c", "ddr_c", "board_c", "fan_rpm", "fan_duty", "fan_status", "battery_pct", "battery_w", "package_w", "pl1_w",
+            "cpu_w", "gpu_w", "throttle",
         };
 
         public static string CsvHeader => string.Join(",", Columns);
 
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+        private static readonly IReadOnlyDictionary<string, int> CurrentLayout = Layout(CsvHeader)!;
 
         public string ToCsv() => string.Join(",",
             Time.ToString("yyyy-MM-ddTHH:mm:ss", Inv), Text(Mode), OnAC ? "1" : "0",
@@ -42,19 +48,36 @@ namespace FwHelper.Features
             MemUsedGb.ToString("0.00", Inv), MemTotalGb.ToString("0.00", Inv),
             Num(CpuTemp), Num(BatteryTemp), Num(DdrTemp), Num(BoardTemp),
             FanRpm.ToString(Inv), FanDuty.ToString(Inv), Text(FanStatus),
-            Num(BatteryPct), Num(BatteryW, "0.0"), Num(PackageW, "0.0"), Num(PL1));
+            Num(BatteryPct), Num(BatteryW, "0.0"), Num(PackageW, "0.0"), Num(PL1),
+            Num(CpuW, "0.0"), Num(GpuW, "0.0"), Text(Throttle));
 
-        /// <summary>Parse a row written by <see cref="ToCsv"/>; null if it doesn't match the header layout.</summary>
-        public static TelemetrySample? FromCsv(string line)
+        /// <summary>Column name → index for a header line; null if it isn't a FW-Helper session header.</summary>
+        public static IReadOnlyDictionary<string, int>? Layout(string header)
         {
+            var names = header.Split(',');
+            if (names.Length == 0 || names[0] != "time" || !names.Contains("cpu_c")) return null;
+            var map = new Dictionary<string, int>();
+            for (int i = 0; i < names.Length; i++) map.TryAdd(names[i], i);
+            return map;
+        }
+
+        /// <summary>Parse a row; <paramref name="layout"/> comes from the file's header (default: this version's columns).</summary>
+        public static TelemetrySample? FromCsv(string line, IReadOnlyDictionary<string, int>? layout = null)
+        {
+            layout ??= CurrentLayout;
             var f = line.Split(',');
-            if (f.Length != Columns.Length || !DateTime.TryParse(f[0], Inv, DateTimeStyles.None, out var time)) return null;
+            if (f.Length != layout.Count) return null;
+            string F(string name) => layout.TryGetValue(name, out int i) ? f[i] : "";
+            if (!DateTime.TryParse(F("time"), Inv, DateTimeStyles.None, out var time)) return null;
             try
             {
-                return new TelemetrySample(time, f[1], f[2] == "1",
-                    D(f[3]), D(f[4]), D(f[5]), S(f[6]), D(f[7]), D(f[8]) ?? 0, D(f[9]) ?? 0,
-                    I(f[10]), I(f[11]), I(f[12]), I(f[13]),
-                    I(f[14]) ?? 0, I(f[15]) ?? -1, f[16], I(f[17]), D(f[18]), D(f[19]), I(f[20]));
+                return new TelemetrySample(time, F("mode"), F("on_ac") == "1",
+                    D(F("cpu_pct")), D(F("cpu_mhz")), D(F("gpu_pct")), S(F("gpu_engine")), D(F("gpu_shared_gb")),
+                    D(F("mem_used_gb")) ?? 0, D(F("mem_total_gb")) ?? 0,
+                    I(F("cpu_c")), I(F("battery_c")), I(F("ddr_c")), I(F("board_c")),
+                    I(F("fan_rpm")) ?? 0, I(F("fan_duty")) ?? -1, F("fan_status"), I(F("battery_pct")),
+                    D(F("battery_w")), D(F("package_w")), I(F("pl1_w")),
+                    D(F("cpu_w")), D(F("gpu_w")), S(F("throttle")));
             }
             catch (FormatException)
             {

@@ -26,8 +26,8 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | **Charge limit** | ✅ verified that charging stops | ✅ set/readback; stop not checked | Reapply on every boot (volatile) |
 | **Monitoring: temperatures** | ✅ all EC sensors + coretemp package, scaled to crit | ✅ 5 EC sensors | |
 | Monitoring: fan rpm/duty/owner | ✅ | ✅ rpm + duty/"EC auto" | |
-| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | 🟡 package W (PawnIO + admin) and system W (battery); no CPU/GPU split | ADR 0011 |
-| Monitoring: CPU load %, busy MHz, throttle | ✅ | 🟡 load % and effective all-core MHz (PDH); no busy MHz or throttle reasons | ADR 0011 |
+| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | 🟡 package, CPU (PP0) and GPU (PP1) watts via PawnIO + admin, plus system W (battery). Code only | ADR 0011 amendment |
+| Monitoring: CPU load %, busy MHz, throttle | ✅ | 🟡 load % and effective MHz (PDH); throttle reasons via PawnIO (code only); no busy MHz | ADR 0011 amendment |
 | Monitoring: GPU load, achieved vs requested clock | ✅ | 🟡 load (busiest engine) and shared memory; no clock | No Windows counter for the Intel achieved clock |
 | Monitoring: memory / swap | ✅ | ✅ RAM (no swap) | |
 | Monitoring: battery W, time left | ✅ | ✅ watts, % and health | |
@@ -39,21 +39,28 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Tray icon + global hotkey | ❌ | ✅ `Ctrl+Shift+F5` | |
 | CLI | ✅ `fw-helperctl` | 🟡 `--selftest` only | |
 | Packaging | ✅ `.deb`, verified install/remove | 🟡 single-file exe + zip, not released | |
-| Automated tests / CI | ✅ fixture tests + CI | 🟡 xunit for the fan controller; no CI | |
+| Automated tests / CI | ✅ fixture tests + CI | ✅ xunit (fan loop against a fake EC, controller, floor, profiles, telemetry) + GitHub Actions | |
 
-## Suggested roadmap
+## Roadmap
 
-This is in priority order. Safety comes first, because fan control and PL writes are the parts that can do damage.
+Safety first: fan control and PL writes are the parts that can do damage.
 
-1. ~~**Fan safety to Linux parity**~~: done 2026-10-04 (ADR 0009) apart from the **hardware soak test** (see CLAUDE.md "Resume here").
-   The learned firmware floor (Linux ADR 0011) is still open. It depends on open question 3 in CLAUDE.md.
-2. **Settle the fan scale question.** `--hwtest fansweep` is built and waiting on the hardware run. Windows 100 % → 7.3k rpm vs Linux full duty → about 5.2k (see hardware baseline).
-3. **Power limits: make them true or remove them.** Partly done 2026-10-05 (ADR 0010): defaults, re-assert, restore, and `--hwtest pl` built. Waiting on the hardware run. Install PawnIO, run elevated, and check whether `0x610` binds under a load
-   longer than 32 s. If not, look into the MCHBAR copy. Re-base defaults on the 35 W ceiling, add re-assert after an overlay change,
-   and decide what happens on exit.
-4. ~~**Monitoring**~~: built 2026-10-05 (ADR 0011). Originally: without admin, CPU load, GPU load (PDH), memory, plus package watts when PawnIO is available.
-   Then live charts on a "Monitor" view.
-5. ~~**Named profiles**~~: built 2026-10-05 (ADR 0012). Originally: in place of three fixed modes, named fan curves, save/delete, and keep Silent/Balanced/Turbo as built-ins.
-6. Release engineering: CI and unit tests done 2026-10-05. Still to do: a GitHub release, and an EC interface behind a fake so `FanControl` itself can be tested.
-7. Possibly later: the architecture question (a privileged service plus a user UI, Linux ADR 0003). This would solve
-   the hard-kill fan restore and the PawnIO admin requirement in one go, at the cost of an installer.
+### Done (waiting only on `docs/hardware-test-plan.md`)
+1. ~~Fan safety to Linux parity~~: done 2026-10-04 (ADR 0009). The fan loop has been testable against a fake EC since 2026-10-05 (ADR 0013).
+2. ~~Learned firmware floor~~: done 2026-10-05 (ADR 0013).
+3. ~~Power limits: measured defaults, re-assert, restore~~: done 2026-10-05 (ADR 0010).
+4. ~~Monitoring, recording, CPU/GPU watts, throttle reasons~~: done 2026-10-05 (ADR 0011 and its amendment).
+5. ~~Named profiles and curves~~: done 2026-10-05 (ADR 0012).
+6. ~~CI, unit tests, draft-release workflow~~: done 2026-10-05.
+
+### Waiting on hardware answers
+- **Fan scale:** Windows 100 % → 7.3k rpm, against Linux full duty → about 5.2k. `--hwtest fansweep`.
+- **Does MSR `0x610` bind PL1?** Linux says the MMIO/MCHBAR copy governs. `--hwtest pl`. If it doesn't bind, look for a PawnIO route to MCHBAR, or drop the feature.
+- **Service split** (ADR 0014, proposed). Decide after the test session.
+
+### Remaining gaps compared with Linux
+- Achieved GPU clock. Windows has no counter for it, and it would need the Intel GPU driver API or MMIO.
+- Busy-weighted CPU MHz. Possible from the APERF/MPERF MSRs via PawnIO.
+- Overlay window / in-game HUD.
+- CLI.
+- Core parking and a GPU frequency cap. Linux measured little benefit (+2 %, +4.9 %), so this is low priority.
