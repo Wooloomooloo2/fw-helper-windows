@@ -82,7 +82,7 @@ namespace FwHelper.UI
                 Modes.SetCurve(_editMode, def);
                 if (_editMode == ModeControl.CurrentMode) ModeControl.ApplyFan();
             };
-            var hint = Label("Drag points to edit. Above 95°C fans always run at 100%.", M, y + 6, Inner - 120);
+            var hint = Label("Drag points to edit. CPU ≥95°C or a hot battery overrides it.", M, y + 6, Inner - 120);
             hint.Tag = "dim";
             y += 28 + 14;
 
@@ -238,11 +238,19 @@ namespace FwHelper.UI
             _editor.CurrentTemp = cpu;
             _editor.Invalidate();
 
-            string duty = FanControl.IsCustomActive && FanControl.LastDuty >= 0 ? $"duty {FanControl.LastDuty}%" : "EC auto";
+            string duty = FanDutyText(FanControl.IsCustomActive, FanControl.LastDuty, FanControl.Status);
             string power = IntelPowerLimits.GetPackagePower() is float w ? $" · CPU {w:0.0}W" : "";
             _liveLabel.Text = $"{(cpu is null ? "-" : cpu + "°C")} · {(fans.Count > 0 ? fans[0] + " RPM" : "-")} · {duty}{power}";
 
             _sensorList.Text = string.Join("   ", temps.Select(t => $"{t.Name.Split('@')[0]}: {(t.Celsius is null ? "n/a" : t.Celsius + "°C")}"));
+        }
+
+        /// <summary>"duty 40%", "duty 100% · battery guard", "EC: CPU ≥100°C", "EC auto".</summary>
+        public static string FanDutyText(bool active, int duty, string status)
+        {
+            if (!active) return "EC auto";
+            if (duty < 0) return status;
+            return status == "curve" ? $"duty {duty}%" : $"duty {duty}% · {status}";
         }
 
         protected override void OnVisibleChanged(EventArgs e)

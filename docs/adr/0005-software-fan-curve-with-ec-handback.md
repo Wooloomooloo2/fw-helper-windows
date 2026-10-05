@@ -1,6 +1,6 @@
 # 0005 — Software fan curve that always hands the fan back to the EC
 
-- **Status:** Accepted. **Known gaps against the Linux sibling's ADR 0006 (see below).**
+- **Status:** Accepted, **amended by [0009](0009-fan-safety-parity-and-guardian.md)**, which closes most of the gaps listed below
 - **Date:** 2026-10-03 (recorded retrospectively 2026-10-04)
 
 ## Context

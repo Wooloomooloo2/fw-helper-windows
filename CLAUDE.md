@@ -30,8 +30,8 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-04)
 
-Version **0.1.0**, one commit (`596f0bf`). Builds with 0 warnings. Unreleased: `publish/` holds a
-single-file exe and a zip, and is gitignored.
+Version **0.1.0**, plus the fan safety work (ADR 0009), which is not yet released. Builds with 0 warnings, and 20 unit tests pass.
+`publish/` holds the v0.1.0 single-file exe and zip, and is gitignored.
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -42,18 +42,29 @@ single-file exe and a zip, and is gitignored.
 | Modes → Windows power overlay, AC/DC memory | ✅ verified | many plug/unplug switches in the log |
 | Refresh rate 60/120/auto | ✅ verified | log |
 | Fixed fan duty + hand back to EC | ✅ verified | selftest: 100 % → 7281 rpm, 20 % → 2635 rpm, auto → 0 |
-| **Custom fan curve loop** | 🟡 **barely exercised** (2 × ~5 s) | no mode has `fan_custom` on in the user's config |
+| **Custom fan curve loop** (1 Hz, hysteresis, stall band, battery guard, Tjmax release) | 🟡 unit-tested; **not run on hardware** since the rewrite | `tests/FwHelper.Tests` |
+| Fan watchdog (5 s) | 🟡 code only | |
+| Guardian process (hard-kill fan restore) | ✅ verified with `Stop-Process -Force` on a dummy parent | log 2026-10-04 21:57; about 28 MB working set |
 | Release fan on suspend / reapply on resume | 🟡 code only | no Suspend/Resume entry in the log yet |
 | **PL1/PL2 via PawnIO** | 🟡 **never run** | "Requires admin", then "PawnIO not installed" |
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
-| Tests / CI | ❌ none | `--selftest` is the only check (needs the real hardware) |
+| Tests | 🟡 fan controller only | `dotnet test tests/FwHelper.Tests`. No CI |
 
 ### Resume here
 
-Documentation was set up on 2026-10-04 (this file, ADRs 0001–0008, hardware baseline, parity, references).
-**No code has changed since v0.1.0.** The user has seen the status review and is about to give feedback on
-v0.1.0. Ask for or apply that feedback first. Otherwise, follow the roadmap in `docs/feature-parity.md`, which begins with
-fan safety parity (battery guard, hysteresis, stiction band, watchdog).
+2026-10-04: docs were set up (ADRs 0001–0008). Then roadmap item 1, fan safety parity, was built (ADR 0009):
+`FanController` (pure, tested), a 1 Hz loop thread, a watchdog thread and the `--guard` guardian process. The UI now shows why
+the fan is overriding the curve ("battery guard", "CPU ≥95°C", "EC: …").
+
+**Next:** the hardware soak test, which is needed before anyone relies on the curve:
+1. Turn on a custom curve for one mode. Run a sustained load for at least 10 min. Watch `log.txt` for `Fan:` transitions and check rpm follows the duty.
+2. Sleep and wake with the curve active. Expect `Suspend` / `Fan control returned to EC` / `Resume` / `Custom fan curve on`.
+3. Use Task Manager → End task on FW-Helper with the curve active. Check the guardian logs `Guard: … fan returned to EC`, and see
+   whether End task also kills the guardian (open question in ADR 0009).
+4. Charge from a low level to see whether the battery guard fires (the battery reaches about 42 °C while charging, according to Linux).
+
+After that, roadmap item 2 in `docs/feature-parity.md`: fan scale cross-check, then power limits.
+The user has not yet given their feedback on v0.1.0.
 
 Open questions:
 1. Fan scale: Windows 100 % → 7.3k rpm, but Linux full duty → about 5.2k. Which is right?
@@ -74,13 +85,16 @@ src/
   Features/
     Modes.cs              mode ids + per-mode config accessors (overlay, fan, PL)
     ModeControl.cs        apply a mode; AC/DC memory; Ctrl+Shift+F5 cycle
-    FanControl.cs         curve loop (2 s timer), safety, hand-back
+    FanController.cs      pure per-tick fan decision: hysteresis, ramp, stall band, CPU/battery overrides (no I/O, unit-tested)
+    FanControl.cs         1 Hz loop thread + watchdog thread, EC writes, hand-back, Status for the UI
     FanCurve.cs           8-point curve, parse/normalize/interpolate
     PowerNative.cs        Windows power overlay (powrprof)
     BatteryControl.cs     charge limit persistence/reapply
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
-  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest
+  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard)
   UI/                     SettingsForm (main), FansForm (Fans + Power), FanCurveEditor, RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
+tests/
+  FwHelper.Tests/         xunit; FanControllerTests (safety rules + random-walk invariants)
 ```
 
 ## Commands
@@ -90,7 +104,10 @@ cd src
 dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish
 ..\publish\FwHelper.exe --selftest     # hardware test → %AppData%\FwHelper\selftest.txt (moves the fan!)
+cd ..; dotnet test tests\FwHelper.Tests   # unit tests (no hardware needed)
 ```
+
+Any change to fan logic goes in `FanController` together with a test. `FanControl` should stay a thin I/O shell.
 
 Runtime files are in `%AppData%\FwHelper\`: `config.json`, `log.txt`, `selftest.txt`. **The log is the
 evidence of what has been verified on hardware.** Read it before claiming a feature works.
@@ -111,15 +128,18 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 
 ## Traps
 
-- **Hard kill leaves the fan stuck.** If the process is killed by Task Manager or `taskkill /f`, the last duty stays until the next start or reboot.
-  `CloseOtherInstances` will `Kill()` an old instance that doesn't close within 1.5 s. The new instance recovers it straight away.
+- **Two `FwHelper.exe` processes are normal.** The second is the `--guard <pid>` guardian (ADR 0009). It covers a hard kill of the
+  tray app, but not "End process tree" or the guardian being killed first. `CloseOtherInstances` kills both the old app and the old
+  guardian. The new instance takes the fan back straight away.
+- **The fan duty is rewritten every tick on purpose.** Anything else that releases the fan (an old guardian, `framework_tool`) is overridden within 1 s.
+- **The battery guard holds 100 % at ≥48 °C; it does not release to the EC like Linux does.** The EC curve follows CPU temperature and would stop the fan. See ADR 0009.
 - **`--selftest` changes real state.** It sets the fan to 100 % and 20 %, and writes back the charge limit.
 - **Charge-limit wire order is `[mode, max, min]`.** Swapping them sets a minimum instead.
 - **The charge limit resets on reboot** (Linux finding). `BatteryControl.AutoLimit()` at startup is what keeps it set.
 - **Power overlay changes are skipped while Battery Saver is on**, by design.
 - **Firmware rewrites PL1 after a profile change.** Any PL write that comes before an overlay switch is likely to be lost.
 - **PL1 ceiling is about 35 W** on this board. The default Turbo PL1 of 45 W cannot be reached.
-- **Stiction:** the fan does not spin below about 8–12 % duty.
+- **Stiction:** the fan does not spin below about 8–12 % duty. `FanController` never requests 1–11 %.
 - Releasing to the EC is *quieter* than manual 100 %, not the same thing. The EC curve tops out at about 3.2k rpm.
 - PECI reads in about 1 °C steps with ±1 °C jitter. Any threshold without hysteresis will flap.
 - A process started from the autostart task has cwd = System32, which is how it decides to start hidden.

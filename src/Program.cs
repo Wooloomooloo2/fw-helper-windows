@@ -18,6 +18,12 @@ namespace FwHelper
         [STAThread]
         public static void Main(string[] args)
         {
+            if (args.Contains(Guardian.Arg))
+            {
+                Guardian.Run(args);
+                return;
+            }
+
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -50,6 +56,7 @@ namespace FwHelper
                 return;
             }
             Logger.WriteLine("EC: " + FrameworkEc.GetVersion());
+            Guardian.Launch();
 
             Toast = new ToastForm();
             SettingsForm = new SettingsForm();

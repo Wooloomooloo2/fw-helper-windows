@@ -19,10 +19,17 @@ and no admin rights needed for the core features.
 | Startup | Run at logon via Task Scheduler | |
 
 ### Fan safety
-While a custom curve is active, the EC's own fan control is disabled. FW-Helper hands the fans back to the EC on quit,
-crash, sign-out and sleep. Above 95°C the fan is forced to 100%. If temperatures can't be read, control goes back to the EC.
-If the process is ever killed forcibly (Task Manager → End task) while a curve is active, the fan stays at its last duty
-until FW-Helper starts again, a mode without a custom curve is selected, or the machine reboots.
+While a custom curve is active, the EC's own fan control is turned off, so FW-Helper treats the fan as borrowed:
+* The fan is handed back to the EC when you quit, on a crash, at sign-out and before sleep.
+* If FW-Helper is killed forcibly (Task Manager → End task), a small guard process hands the fan back. You will see a second
+  `FwHelper.exe`; that is the guard.
+* A watchdog hands the fan back if the control loop stops responding for 5 seconds.
+* If the CPU temperature can't be read, the EC takes the fan back.
+* The CPU at 95°C or above forces 100%. At 100°C the EC takes over.
+* A warm battery (42°C and above, common while charging) raises the fan whatever the curve says. At 48°C it runs at 100%.
+* The fan is never asked to run below about 12%, where it would stall.
+
+The fan status line shows when one of these overrides is active.
 
 ## Requirements
 * Framework Laptop 13 with the Framework driver bundle installed (provides the **Framework EC** / `CrosEcBus` driver)

@@ -9,12 +9,12 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 
 | Area | Linux | Windows | Notes for Windows |
 |---|---|---|---|
-| **Fan: custom curve** | ✅ any number of points, 1 Hz, hysteresis, ramp up 12 / down 4 per tick | 🟡 8 points, 2 s, ramp down 4 %/tick, no hysteresis | Curve loop has only run for seconds. See ADR 0005 |
+| **Fan: custom curve** | ✅ any number of points, 1 Hz, hysteresis, ramp up 12 / down 4 per tick | 🟡 8 points, 1 Hz, 2 °C hysteresis, ramp down 2 %/tick, unit-tested | Not yet soak-tested on hardware. ADR 0009 |
 | Fan: firmware-floor clamp (learned) | ✅ | ❌ | Needs the EC auto duty to be readable on Windows. Check this first |
-| Fan: battery guard | ✅ | ❌ | Highest-value safety gap. `battery_temp` is already read |
-| Fan: watchdog + crash-path restore | ✅ (`kill -9` → 0.27 s) | ❌ | Hard kill leaves a fixed duty |
+| Fan: battery guard | ✅ | 🟡 42→48 °C ramp to 100 %, unit-tested | Holds 100 % rather than releasing (ADR 0009) |
+| Fan: watchdog + crash-path restore | ✅ (`kill -9` → 0.27 s) | 🟡 watchdog thread (untested); ✅ guardian process verified on hard kill | Not covered: End process tree (ADR 0009) |
 | Fan: release across suspend | ✅ | 🟡 | Code exists. No suspend event seen in the log yet |
-| Fan: stiction refusal (1–29/255) | ✅ | ❌ | |
+| Fan: stiction refusal (1–29/255) | ✅ | ✅ never 1–11 % (unit-tested) | |
 | Fan: pinned fixed duty | ✅ | ❌ | Only via `--selftest` |
 | **Named / saved profiles** | ✅ user profiles (`profiles.d`), save/delete, can override built-ins | ❌ three fixed modes with per-mode settings | Would need a model change: modes → named profiles |
 | Built-in ladder | ✅ quiet / balanced / performance / turbo / max, plus game / retro | 🟡 Silent / Balanced / Turbo | |
@@ -39,15 +39,14 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Tray icon + global hotkey | ❌ | ✅ `Ctrl+Shift+F5` | |
 | CLI | ✅ `fw-helperctl` | 🟡 `--selftest` only | |
 | Packaging | ✅ `.deb`, verified install/remove | 🟡 single-file exe + zip, not released | |
-| Automated tests / CI | ✅ fixture tests + CI | ❌ | |
+| Automated tests / CI | ✅ fixture tests + CI | 🟡 xunit for the fan controller; no CI | |
 
 ## Suggested roadmap
 
 This is in priority order. Safety comes first, because fan control and PL writes are the parts that can do damage.
 
-1. **Fan safety to Linux parity** (ADR 0005 gaps): battery guard, hysteresis, stiction band,
-   1 s poll, a watchdog thread, and a decision on the hard-kill path (a separate restore process/service, or accept the risk and document it).
-   Then run a soak test with a sleep/resume cycle.
+1. ~~**Fan safety to Linux parity**~~: done 2026-10-04 (ADR 0009) apart from the **hardware soak test** (see CLAUDE.md "Resume here").
+   The learned firmware floor (Linux ADR 0011) is still open. It depends on open question 3 in CLAUDE.md.
 2. **Settle the fan scale question.** Windows 100 % → 7.3k rpm vs Linux full duty → about 5.2k (see hardware baseline).
 3. **Power limits: make them true or remove them.** Install PawnIO, run elevated, and check whether `0x610` binds under a load
    longer than 32 s. If not, look into the MCHBAR copy. Re-base defaults on the 35 W ceiling, add re-assert after an overlay change,

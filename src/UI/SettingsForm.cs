@@ -221,7 +221,7 @@ namespace FwHelper.UI
             int? cpu = FrameworkEc.GetCpuTemp(temps);
             var fans = FrameworkEc.GetFanRpms();
             string fan = fans.Count > 0 ? $"{fans[0]} RPM" : "-";
-            string duty = FanControl.IsCustomActive && FanControl.LastDuty >= 0 ? $" ({FanControl.LastDuty}%)" : "";
+            string duty = FanControl.IsCustomActive ? $" ({FansForm.FanDutyText(true, FanControl.LastDuty, FanControl.Status)})" : "";
             _sensorsLabel.Text = $"CPU {(cpu is null ? "-" : cpu + "°C")} · Fan {fan}{duty}";
 
             var batt = FrameworkEc.GetBattery();
