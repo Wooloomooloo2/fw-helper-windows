@@ -32,7 +32,7 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-05)
 
-Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 116 unit tests pass, and CI is green. `publish/` is gitignored.
+Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 144 unit tests pass, and CI is green. `publish/` is gitignored.
 The user is running a build from `e57f79b` (fan safety only), from `publish\`. **The machine can't be restarted for a few hours**,
 so don't run anything that closes their FW-Helper (`--hwtest`, starting a second instance). Read-only EC probes from a throwaway test are fine.
 
@@ -58,7 +58,8 @@ so don't run anything that closes their FW-Helper (`--hwtest`, starting a second
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
 | Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
-| Unit tests | ✅ 116: fan loop (fake EC), controller, floor, curve, PL keeper, RAPL, telemetry, profiles | `dotnet test tests/FwHelper.Tests` |
+| CLI (`--status` etc. over a named pipe) + overlay window | 🟡 `--status` fallback verified on hardware; pipe path not yet run against a new build | ADR 0015 |
+| Unit tests | ✅ 144: fan loop (fake EC), controller, floor, curve, PL keeper, RAPL, telemetry, profiles, CLI | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -72,7 +73,8 @@ test on hardware. Add each new check to `docs/hardware-test-plan.md`. Built toda
 - monitoring and recording (ADR 0011, plus its PawnIO amendment);
 - profiles and named curves (ADR 0012);
 - the learned EC floor, a PECI-only control input and a testable `FanLoop` (ADR 0013);
-- the proposed service split (ADR 0014).
+- the proposed service split (ADR 0014);
+- the CLI over a per-user named pipe, and the overlay window (ADR 0015).
 
 **No tag has been pushed. Tag `v0.2.0` only after the hardware test plan has passed.**
 
@@ -115,8 +117,9 @@ src/
     PowerNative.cs        Windows power overlay (powrprof)
     BatteryControl.cs     charge limit persistence/reapply
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
-  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest)
-  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, FanCurveEditor, ProfileMenu, PromptForm,
+  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest),
+                          Cli + CommandProtocol (pure) + CommandServer (named pipe, runs commands on the UI thread)
+  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
                           RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit, no hardware: FakeFan (fake EC) drives FanLoop; never touches AppConfig
@@ -130,6 +133,7 @@ dotnet build -c Release
 # publishing to ..\publish fails while FW-Helper is running from there (exe locked): quit it first
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish
 ..\publish\FwHelper.exe --selftest     # hardware test → %AppData%\FwHelper\selftest.txt (moves the fan!)
+..\publish\FwHelper.exe --status | Out-String   # CLI (see README); never replaces the running app
 ..\publish\FwHelper.exe --hwtest all   # targeted hardware experiments (see docs/hardware-test-plan.md); closes and restarts the tray app
 cd ..; dotnet test tests\FwHelper.Tests   # unit tests (no hardware needed)
 ```
@@ -175,6 +179,9 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - **Unit tests must never touch `AppConfig`.** It reads and writes the user's real `%AppData%\FwHelper\config.json`. Keep the logic
   pure (`ProfileList`, `FanController`, `PowerLimitKeeper`...) and test that.
 - A disabled `RButton` used to draw its text twice (fixed 2026-10-05 in `OnPaint`). The profile buttons are hidden rather than disabled anyway.
+- **Argument order in `Program.Main` matters:** `--guard`, then CLI verbs, then `--selftest`/`--hwtest`, then `CloseOtherInstances`.
+  A new argument placed after `CloseOtherInstances` will kill the user's running app.
+- The command pipe is an input: any new verb must be validated again in `CommandServer`, not only in `CommandProtocol.Parse`.
 - Profile ids are config keys. Never renumber them, and never reuse a deleted one (ADR 0012).
 - Energy counters: give every consumer its own `RaplEnergy` meter. A shared one splits the measuring interval (fixed 2026-10-05; `GetPackagePower()` is only for Fans + Power and --hwtest).
 

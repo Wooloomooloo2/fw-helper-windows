@@ -24,6 +24,13 @@ namespace FwHelper
                 return;
             }
 
+            // Command line: talks to the running instance, never replaces it
+            if (CommandProtocol.IsCommand(args))
+            {
+                Environment.ExitCode = Cli.Run(args);
+                return;
+            }
+
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -94,6 +101,7 @@ namespace FwHelper
             };
 
             Task.Run(Startup.StartupCheck);
+            CommandServer.Start(SettingsForm);
 
             // Started manually (not from the startup task): show the window right away
             if (!args.Contains("-tray") && Environment.CurrentDirectory.Trim('\\') != Environment.SystemDirectory.Trim('\\'))
@@ -158,6 +166,9 @@ namespace FwHelper
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open", null, (_, _) => SettingsForm.ShowAtTray());
             menu.Items.Add("Monitor", null, (_, _) => ShowMonitor());
+            var overlayItem = new ToolStripMenuItem("Overlay", null, (_, _) => ToggleOverlay());
+            menu.Items.Add(overlayItem);
+            menu.Opening += (_, _) => overlayItem.Checked = _overlay is { IsDisposed: false };
             var stopRecording = new ToolStripMenuItem("Stop recording", null, (_, _) => Telemetry.StopRecording());
             menu.Items.Add(stopRecording);
             menu.Items.Add("Open log", null, (_, _) => ProcessHelper.OpenUrl(Logger.LogFile));
@@ -169,6 +180,20 @@ namespace FwHelper
                 stopRecording.Visible = Telemetry.IsRecording;
             };
             return menu;
+        }
+
+        private static OverlayForm? _overlay;
+
+        public static void ToggleOverlay()
+        {
+            if (_overlay is { IsDisposed: false })
+            {
+                _overlay.Close();
+                return;
+            }
+            _overlay = new OverlayForm();
+            _overlay.FormClosed += (_, _) => _overlay = null;
+            _overlay.Show();
         }
 
         private static MonitorForm? _monitor;

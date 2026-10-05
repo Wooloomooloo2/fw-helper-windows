@@ -45,6 +45,18 @@ dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish
 ```
 
+## Command line
+
+```powershell
+FwHelper.exe --status | Out-String        # mode, temperatures, fan (and who owns it), battery
+FwHelper.exe --profiles | Out-String
+FwHelper.exe --mode Turbo                 # by name or id; also your own profiles
+FwHelper.exe --charge-limit 80
+FwHelper.exe --fan-floor on               # never quieter than the EC's own fan control
+```
+
+Changes go to the running FW-Helper over a named pipe that only your own account can open. `--status` also works when it isn't running.
+
 `FwHelper.exe --selftest` writes a hardware report to `%AppData%\FwHelper\selftest.txt`.
 Settings live in `%AppData%\FwHelper\config.json` and the log is in `%AppData%\FwHelper\log.txt`.
 

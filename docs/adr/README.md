@@ -26,3 +26,4 @@ When a Windows ADR refers to a Linux ADR, it says "Linux ADR NNNN". The two seri
 | [0012](0012-user-profiles-and-named-curves.md) | User profiles with stable ids, named fan-curve library | Accepted |
 | [0013](0013-learned-ec-floor-and-peci-only-control.md) | Learned EC floor, PECI-only control input, testable fan loop | Accepted |
 | [0014](0014-windows-service-split.md) | Split into a Windows service + user tray app? | **Proposed** |
+| [0015](0015-cli-over-named-pipe-and-overlay.md) | Command line over a per-user named pipe; overlay window | Accepted |

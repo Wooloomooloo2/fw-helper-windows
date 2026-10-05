@@ -33,11 +33,11 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Monitoring: battery W, time left | ✅ | ✅ watts, % and health | |
 | Live charts | ✅ 6 cards, 300-sample window | ✅ 6 cards, 300 samples, reopens saved sessions | Rendered offscreen; not yet seen live |
 | Session recording (CSV) | ✅ | ✅ 21 columns, 12 h auto-stop, keeps 20 | |
-| Overlay / in-game HUD | ✅ overlay window + MangoHud | ❌ | |
+| Overlay / in-game HUD | ✅ overlay window + MangoHud | 🟡 topmost overlay window (not over exclusive full-screen); no in-game HUD | ADR 0015 |
 | **Keyboard backlight / power LED** | ❌ | ✅ | Windows-only extra |
 | **Refresh-rate switching** | ❌ | ✅ 60/max/auto | Windows-only extra |
 | Tray icon + global hotkey | ❌ | ✅ `Ctrl+Shift+F5` | |
-| CLI | ✅ `fw-helperctl` | 🟡 `--selftest` only | |
+| CLI | ✅ `fw-helperctl` | 🟡 `--status`, `--profiles`, `--mode`, `--charge-limit`, `--fan-floor` (named pipe); no fan duty or PL commands | ADR 0015 |
 | Packaging | ✅ `.deb`, verified install/remove | 🟡 single-file exe + zip, not released | |
 | Automated tests / CI | ✅ fixture tests + CI | ✅ xunit (fan loop against a fake EC, controller, floor, profiles, telemetry) + GitHub Actions | |
 
@@ -61,6 +61,6 @@ Safety first: fan control and PL writes are the parts that can do damage.
 ### Remaining gaps compared with Linux
 - Achieved GPU clock. Windows has no counter for it, and it would need the Intel GPU driver API or MMIO.
 - Busy-weighted CPU MHz. Possible from the APERF/MPERF MSRs via PawnIO.
-- Overlay window / in-game HUD.
-- CLI.
+- In-game HUD over exclusive full-screen (the overlay window covers windowed and borderless games).
+- CLI commands for fan duty and PL (left out on purpose: GUI-only for now).
 - Core parking and a GPU frequency cap. Linux measured little benefit (+2 %, +4.9 %), so this is low priority.

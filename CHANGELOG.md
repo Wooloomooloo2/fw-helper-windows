@@ -32,10 +32,15 @@
 - **Named fan curves:** save a curve under a name and load it into any profile.
 - Settings from 0.1.0 carry over unchanged.
 
+### Command line and overlay (ADR 0015)
+- `FwHelper.exe --status`, `--profiles`, `--mode <name|id>`, `--charge-limit <50-100>`, `--fan-floor on|off`. These control the running app over a
+  named pipe that only your own account can open. `--status` also works without the app running.
+- **Overlay:** a small always-on-top readout of CPU, GPU, power and fan (tray → Overlay).
+
 ### Tooling
 - `--hwtest fansweep|watchdog|pl|all` runs targeted hardware experiments.
-- CI builds with warnings as errors, runs 116 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
-- Project documentation: `CLAUDE.md`, ADRs 0001–0014, the hardware baseline, the feature comparison with the Linux version, and the test plan.
+- CI builds with warnings as errors, runs 144 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
+- Project documentation: `CLAUDE.md`, ADRs 0001–0015, the hardware baseline, the feature comparison with the Linux version, and the test plan.
 
 ## 0.1.0 (2026-10-03)
 
