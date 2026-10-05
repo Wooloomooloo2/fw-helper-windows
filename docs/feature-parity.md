@@ -47,13 +47,13 @@ This is in priority order. Safety comes first, because fan control and PL writes
 
 1. ~~**Fan safety to Linux parity**~~: done 2026-10-04 (ADR 0009) apart from the **hardware soak test** (see CLAUDE.md "Resume here").
    The learned firmware floor (Linux ADR 0011) is still open. It depends on open question 3 in CLAUDE.md.
-2. **Settle the fan scale question.** Windows 100 % → 7.3k rpm vs Linux full duty → about 5.2k (see hardware baseline).
-3. **Power limits: make them true or remove them.** Install PawnIO, run elevated, and check whether `0x610` binds under a load
+2. **Settle the fan scale question.** `--hwtest fansweep` is built and waiting on the hardware run. Windows 100 % → 7.3k rpm vs Linux full duty → about 5.2k (see hardware baseline).
+3. **Power limits: make them true or remove them.** Partly done 2026-10-05 (ADR 0010): defaults, re-assert, restore, and `--hwtest pl` built. Waiting on the hardware run. Install PawnIO, run elevated, and check whether `0x610` binds under a load
    longer than 32 s. If not, look into the MCHBAR copy. Re-base defaults on the 35 W ceiling, add re-assert after an overlay change,
    and decide what happens on exit.
 4. **Monitoring** without admin: CPU load, GPU load (PDH), memory, plus package watts when PawnIO is available.
    Then live charts on a "Monitor" view.
 5. **Named profiles** in place of three fixed modes: named fan curves, save/delete, and keep Silent/Balanced/Turbo as built-ins.
-6. Release engineering: GitHub release, CI build, unit tests for `FanCurve` and the curve controller (an EC interface behind a fake).
+6. Release engineering: CI done 2026-10-05. Still to do: GitHub release, unit tests for `FanCurve` and the curve controller (an EC interface behind a fake).
 7. Possibly later: the architecture question (a privileged service plus a user UI, Linux ADR 0003). This would solve
    the hard-kill fan restore and the PawnIO admin requirement in one go, at the cost of an installer.

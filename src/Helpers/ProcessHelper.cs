@@ -40,12 +40,15 @@ namespace FwHelper.Helpers
         }
 
         /// <summary>Close any other running instance (new instance wins, as in G-Helper).</summary>
-        public static void CloseOtherInstances()
+        /// <returns>Whether another instance was running.</returns>
+        public static bool CloseOtherInstances()
         {
             var current = Process.GetCurrentProcess();
+            bool found = false;
             foreach (var p in Process.GetProcessesByName(current.ProcessName))
             {
                 if (p.Id == current.Id) continue;
+                found = true;
                 try
                 {
                     p.CloseMainWindow();
@@ -56,6 +59,7 @@ namespace FwHelper.Helpers
                     Logger.WriteLine("Can't close other instance: " + ex.Message);
                 }
             }
+            return found;
         }
 
         public static void OpenUrl(string url)

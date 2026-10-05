@@ -118,11 +118,11 @@ namespace FwHelper.UI
             y += 26;
 
             _pl1Label = Label("PL1", M, y + 4, 150);
-            _pl1 = new Slider { Min = 5, Max = 65, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
+            _pl1 = new Slider { Min = PowerLimitControl.MinPL1, Max = PowerLimitControl.MaxPL1, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
             Controls.Add(_pl1);
             y += 30;
             _pl2Label = Label("PL2", M, y + 4, 150);
-            _pl2 = new Slider { Min = 5, Max = 115, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
+            _pl2 = new Slider { Min = PowerLimitControl.MinPL2, Max = PowerLimitControl.MaxPL2, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
             Controls.Add(_pl2);
             y += 30;
 

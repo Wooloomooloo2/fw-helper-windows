@@ -66,6 +66,12 @@ namespace FwHelper.Features
             }
         }
 
+        /// <summary>Hardware test only: block the control loop (as a hung EC call would) so the watchdog has to step in.</summary>
+        internal static void StallLoopForTest(TimeSpan duration)
+        {
+            lock (_lock) Thread.Sleep(duration);
+        }
+
         private static void EnsureThreads()
         {
             if (_loop is null)

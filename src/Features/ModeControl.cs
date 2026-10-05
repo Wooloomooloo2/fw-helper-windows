@@ -55,15 +55,6 @@ namespace FwHelper.Features
                 FanControl.Stop();
         }
 
-        public static void ApplyPowerLimits()
-        {
-            if (!Modes.IsPowerLimit(CurrentMode)) return;
-            if (!IntelPowerLimits.Init())
-            {
-                Logger.WriteLine("Power limits unavailable: " + IntelPowerLimits.Status);
-                return;
-            }
-            IntelPowerLimits.Set(Modes.GetPL1(CurrentMode), Modes.GetPL2(CurrentMode));
-        }
+        public static void ApplyPowerLimits() => PowerLimitControl.Apply(CurrentMode);
     }
 }

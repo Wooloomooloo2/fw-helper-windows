@@ -25,6 +25,7 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 | [docs/adr/](docs/adr/README.md) | Architecture decisions (MADR, numbered, never renumbered) |
 | [docs/hardware-baseline.md](docs/hardware-baseline.md) | Measured hardware facts, each tagged [W] Windows / [L] Linux / [?] unverified |
 | [docs/feature-parity.md](docs/feature-parity.md) | Linux vs Windows comparison, and the roadmap |
+| [docs/hardware-test-plan.md](docs/hardware-test-plan.md) | **Every pending on-hardware check, bundled into one run.** Add new ones here instead of testing ad hoc |
 | [docs/references.md](docs/references.md) | External repos and specs we build on |
 | `README.md` | User-facing |
 
@@ -46,9 +47,11 @@ Version **0.1.0**, plus the fan safety work (ADR 0009), which is not yet release
 | Fan watchdog (5 s) | 🟡 code only | |
 | Guardian process (hard-kill fan restore) | ✅ verified with `Stop-Process -Force` on a dummy parent | log 2026-10-04 21:57; about 28 MB working set |
 | Release fan on suspend / reapply on resume | 🟡 code only | no Suspend/Resume entry in the log yet |
-| **PL1/PL2 via PawnIO** | 🟡 **never run** | "Requires admin", then "PawnIO not installed" |
+| **PL1/PL2 via PawnIO** | 🟡 **never run**. Defaults moved to the measured ceiling, re-asserted against firmware, original restored on exit (ADR 0010) | "Requires admin", then "PawnIO not installed". `--hwtest pl` is ready |
+| Hardware test mode `--hwtest fansweep\|watchdog\|pl\|all` | 🟡 built, not yet run | `docs/hardware-test-plan.md` |
+| CI (GitHub Actions: build `-warnaserror`, test, publish artifact) | ✅ green | `.github/workflows/ci.yml` |
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
-| Tests | 🟡 fan controller only | `dotnet test tests/FwHelper.Tests`. No CI |
+| Unit tests | 🟡 FanController, FanCurve, PowerLimitKeeper (42) | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -56,14 +59,12 @@ Version **0.1.0**, plus the fan safety work (ADR 0009), which is not yet release
 `FanController` (pure, tested), a 1 Hz loop thread, a watchdog thread and the `--guard` guardian process. The UI now shows why
 the fan is overriding the curve ("battery guard", "CPU ≥95°C", "EC: …").
 
-**Next:** the hardware soak test, which is needed before anyone relies on the curve:
-1. Turn on a custom curve for one mode. Run a sustained load for at least 10 min. Watch `log.txt` for `Fan:` transitions and check rpm follows the duty.
-2. Sleep and wake with the curve active. Expect `Suspend` / `Fan control returned to EC` / `Resume` / `Custom fan curve on`.
-3. Use Task Manager → End task on FW-Helper with the curve active. Check the guardian logs `Guard: … fan returned to EC`, and see
-   whether End task also kills the guardian (open question in ADR 0009).
-4. Charge from a low level to see whether the battery guard fires (the battery reaches about 42 °C while charging, according to Linux).
+2026-10-05: **The user's direction is to build as much as possible and run the hardware tests together later.** Don't stop to
+test on hardware. Add each new check to `docs/hardware-test-plan.md`. Done so far today: CI and more unit tests, the
+`--hwtest` mode (fansweep, watchdog, pl), and the power-limit rework (ADR 0010).
 
-After that, roadmap item 2 in `docs/feature-parity.md`: fan scale cross-check, then power limits.
+**Next on the build backlog:** (1) monitoring: CPU/GPU/memory load, power, live charts, CSV recording; (2) named profiles and
+named fan curves; (3) release prep (version bump, GitHub release). After that, run the bundled hardware test plan with the user.
 The user has not yet given their feedback on v0.1.0.
 
 Open questions:
@@ -88,10 +89,11 @@ src/
     FanController.cs      pure per-tick fan decision: hysteresis, ramp, stall band, CPU/battery overrides (no I/O, unit-tested)
     FanControl.cs         1 Hz loop thread + watchdog thread, EC writes, hand-back, Status for the UI
     FanCurve.cs           8-point curve, parse/normalize/interpolate
+    PowerLimitControl.cs  per-mode PL apply, PowerLimitKeeper (pure re-assert policy), restore on exit
     PowerNative.cs        Windows power overlay (powrprof)
     BatteryControl.cs     charge limit persistence/reapply
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
-  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard)
+  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest)
   UI/                     SettingsForm (main), FansForm (Fans + Power), FanCurveEditor, RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit; FanControllerTests (safety rules + random-walk invariants)
@@ -104,6 +106,7 @@ cd src
 dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish
 ..\publish\FwHelper.exe --selftest     # hardware test → %AppData%\FwHelper\selftest.txt (moves the fan!)
+..\publish\FwHelper.exe --hwtest all   # targeted hardware experiments (see docs/hardware-test-plan.md); closes and restarts the tray app
 cd ..; dotnet test tests\FwHelper.Tests   # unit tests (no hardware needed)
 ```
 
@@ -138,7 +141,7 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - **The charge limit resets on reboot** (Linux finding). `BatteryControl.AutoLimit()` at startup is what keeps it set.
 - **Power overlay changes are skipped while Battery Saver is on**, by design.
 - **Firmware rewrites PL1 after a profile change.** Any PL write that comes before an overlay switch is likely to be lost.
-- **PL1 ceiling is about 35 W** on this board. The default Turbo PL1 of 45 W cannot be reached.
+- **PL1 ceiling is about 35 W** on this board, so the sliders stop there (PL1 8–35, PL2 15–80). The first PL write captures the raw MSR value, which is restored when PL is turned off or the app exits.
 - **Stiction:** the fan does not spin below about 8–12 % duty. `FanController` never requests 1–11 %.
 - Releasing to the EC is *quieter* than manual 100 %, not the same thing. The EC curve tops out at about 3.2k rpm.
 - PECI reads in about 1 °C steps with ±1 °C jitter. Any threshold without hysteresis will flap.

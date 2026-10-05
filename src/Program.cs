@@ -43,6 +43,16 @@ namespace FwHelper
                 return;
             }
 
+            if (args.Contains(HardwareTests.Arg))
+            {
+                // A running tray app would fight the test for the fan and PL MSR: stop it, and bring it back afterwards
+                bool wasRunning = ProcessHelper.CloseOtherInstances();
+                HardwareTests.Run(args);
+                SafeShutdown();
+                if (wasRunning) System.Diagnostics.Process.Start(Application.ExecutablePath, "-tray");
+                return;
+            }
+
             ProcessHelper.CloseOtherInstances();
 
             if (!FrameworkEc.Connect())
@@ -173,6 +183,7 @@ namespace FwHelper
         private static void SafeShutdown()
         {
             try { FanControl.Stop(); } catch { }
+            try { PowerLimitControl.Shutdown(); } catch { }
         }
 
         public static void Exit()

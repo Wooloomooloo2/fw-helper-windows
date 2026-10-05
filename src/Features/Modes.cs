@@ -36,8 +36,10 @@ namespace FwHelper.Features
         public static bool IsPowerLimit(int mode) => AppConfig.Get(AppConfig.ModeKey("pl_custom", mode), 0) == 1;
         public static void SetPowerLimit(int mode, bool on) => AppConfig.Set(AppConfig.ModeKey("pl_custom", mode), on ? 1 : 0);
 
-        public static int GetPL1(int mode) => AppConfig.Get(AppConfig.ModeKey("pl1", mode), mode switch { Silent => 15, Turbo => 45, _ => 28 });
-        public static int GetPL2(int mode) => AppConfig.Get(AppConfig.ModeKey("pl2", mode), mode switch { Silent => 30, Turbo => 64, _ => 45 });
+        // Defaults from the Linux measurements (docs/hardware-baseline.md): real PL1 ceiling ~35 W, stock PL2 60 W,
+        // 25 W is the gaming sweet spot (same fps as 35 W, quieter)
+        public static int GetPL1(int mode) => AppConfig.Get(AppConfig.ModeKey("pl1", mode), mode switch { Silent => 15, Turbo => 35, _ => 25 });
+        public static int GetPL2(int mode) => AppConfig.Get(AppConfig.ModeKey("pl2", mode), mode switch { Silent => 30, Turbo => 64, _ => 60 });
         public static void SetPL(int mode, int pl1, int pl2)
         {
             AppConfig.Set(AppConfig.ModeKey("pl1", mode), pl1);

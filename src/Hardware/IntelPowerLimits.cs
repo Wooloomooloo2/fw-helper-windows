@@ -69,10 +69,18 @@ namespace FwHelper.Hardware
             return (pl1, pl2);
         }
 
+        /// <summary>The register as firmware left it before our first write; put back by <see cref="Restore"/>.</summary>
+        private static ulong? _original;
+
         public static bool Set(int pl1, int pl2)
         {
             if (!IsAvailable || !ReadMsr(MSR_PKG_POWER_LIMIT, out ulong v)) return false;
             if ((v >> 63) == 1) { Logger.WriteLine("PL MSR locked"); return false; }
+            if (_original is null)
+            {
+                _original = v;
+                Logger.WriteLine($"PL MSR original: 0x{v:X16} ({Decode(v)})");
+            }
 
             ulong raw1 = (ulong)Math.Clamp(pl1 / _powerUnit, 1, 0x7FFF);
             ulong raw2 = (ulong)Math.Clamp(pl2 / _powerUnit, 1, 0x7FFF);
@@ -84,6 +92,20 @@ namespace FwHelper.Hardware
             Logger.WriteLine($"Set PL1={pl1}W PL2={pl2}W: {(ok ? "OK" : "failed")}");
             return ok;
         }
+
+        /// <summary>Write back the register as it was before our first <see cref="Set"/>. No-op if we never wrote it.</summary>
+        public static bool Restore()
+        {
+            if (!IsAvailable || _original is not ulong original) return true;
+            bool ok = _io.Execute("ioctl_write_msr", new ulong[] { MSR_PKG_POWER_LIMIT, original }, null);
+            Logger.WriteLine($"PL MSR restored ({Decode(original)}): {(ok ? "OK" : "failed")}");
+            if (ok) _original = null;
+            return ok;
+        }
+
+        private static string Decode(ulong v) =>
+            $"PL1 {(v & 0x7FFF) * _powerUnit:0}W{((v >> 15) & 1) switch { 1 => "", _ => " off" }}, " +
+            $"PL2 {((v >> 32) & 0x7FFF) * _powerUnit:0}W{((v >> 47) & 1) switch { 1 => "", _ => " off" }}";
 
         /// <summary>CPU package power from the RAPL energy counter (needs two calls to produce a value).</summary>
         public static float? GetPackagePower()
