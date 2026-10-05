@@ -36,9 +36,11 @@ namespace FwHelper.Hardware
             {
                 // A session left behind by a crashed run keeps the name: take it over
                 _session = new TraceEventSession(SessionName) { StopOnDispose = true };
-                _session.EnableProvider(Dxgi, TraceEventLevel.Informational, 0x8000000000000002);
-                _session.EnableProvider(D3D9, TraceEventLevel.Informational, 0x8000000000000002);
-                _session.EnableProvider(DxgKrnl, TraceEventLevel.Informational, 0x4000000008000001);
+                // Filter by event id in the kernel: unfiltered, DxgKrnl alone sends ~5000 events/s at idle (measured), which cost
+                // ~4 % of a core and kept the CPU awake (+1–1.5 W package at idle)
+                _session.EnableProvider(Dxgi, TraceEventLevel.Informational, 0x8000000000000002, Only(DxgiPresentStart, DxgiPresentMpoStart));
+                _session.EnableProvider(D3D9, TraceEventLevel.Informational, 0x8000000000000002, Only(D3D9PresentStart));
+                _session.EnableProvider(DxgKrnl, TraceEventLevel.Informational, 0x4000000008000001, Only(DxgKrnlPresentInfo));
                 _session.Source.AllEvents += OnEvent;
                 _thread = new Thread(() =>
                 {
@@ -58,6 +60,8 @@ namespace FwHelper.Hardware
                 _session = null;
             }
         }
+
+        private static TraceEventProviderOptions Only(params int[] ids) => new() { EventIDsToEnable = ids.ToList() };
 
         private void OnEvent(TraceEvent e)
         {

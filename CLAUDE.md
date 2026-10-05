@@ -191,6 +191,9 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - Profile ids are config keys. Never renumber them, and never reuse a deleted one (ADR 0012).
 - Each consumer of Energy Meter or PDH keeps its own query (the governor, telemetry and hwtest each have one).
 - The FPS ETW session runs only while telemetry is in use. A crashed run's session (`FwHelper-Presents`) is taken over by name.
+- **Always filter ETW providers by event id** (`Only(...)` in PresentMonitor). DxgKrnl unfiltered is about 4,900 events/s at idle: +1–1.5 W.
+- **Idle cost matters, because the user watches CPU watts.** Measure FW-Helper's CPU (`TotalProcessorTime` over 10–20 s) after adding anything that runs periodically.
+  Target: under 0.5 % of one core at idle, with the overlay open or closed.
 
 ## Conventions
 

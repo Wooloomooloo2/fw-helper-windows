@@ -46,3 +46,6 @@ it trips anti-cheat and it is fragile.
 - **Not shown over exclusive full-screen.** That needs injection. Borderless and windowed games (most modern games) are fine.
 - Frame timing (1 % lows, frame-time graph) is not done yet. The events carry timestamps, so it can be added later.
 - A crashed run can leave the `FwHelper-Presents` ETW session behind. The next start takes it over by name.
+- **Filter by event id in the kernel** (`TraceEventProviderOptions.EventIDsToEnable`). Unfiltered, DxgKrnl delivered about 4,900 events/s
+  at idle. That cost about 3.8 % of a core and +1–1.5 W of package power at idle while the overlay was open (user report, measured
+  2026-10-05). Filtered, it costs 0.16 %.
