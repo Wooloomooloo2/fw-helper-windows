@@ -51,7 +51,8 @@ Version **0.1.0**, plus the fan safety work (ADR 0009), which is not yet release
 | Hardware test mode `--hwtest fansweep\|watchdog\|pl\|all` | 🟡 built, not yet run | `docs/hardware-test-plan.md` |
 | CI (GitHub Actions: build `-warnaserror`, test, publish artifact) | ✅ green | `.github/workflows/ci.yml` |
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
-| Unit tests | 🟡 FanController, FanCurve, PowerLimitKeeper (42) | `dotnet test tests/FwHelper.Tests` |
+| Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
+| Unit tests | 🟡 FanController, FanCurve, PowerLimitKeeper, telemetry CSV/GPU/chart helpers (59) | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -61,10 +62,9 @@ the fan is overriding the curve ("battery guard", "CPU ≥95°C", "EC: …").
 
 2026-10-05: **The user's direction is to build as much as possible and run the hardware tests together later.** Don't stop to
 test on hardware. Add each new check to `docs/hardware-test-plan.md`. Done so far today: CI and more unit tests, the
-`--hwtest` mode (fansweep, watchdog, pl), and the power-limit rework (ADR 0010).
+`--hwtest` mode (fansweep, watchdog, pl), the power-limit rework (ADR 0010), and monitoring with recording (ADR 0011).
 
-**Next on the build backlog:** (1) monitoring: CPU/GPU/memory load, power, live charts, CSV recording; (2) named profiles and
-named fan curves; (3) release prep (version bump, GitHub release). After that, run the bundled hardware test plan with the user.
+**Next on the build backlog:** (1) named profiles and named fan curves; (2) release prep (version bump, GitHub release). After that, run the bundled hardware test plan with the user.
 The user has not yet given their feedback on v0.1.0.
 
 Open questions:
@@ -83,6 +83,8 @@ src/
     PawnIOWrapper.cs      PawnIO driver client (from G-Helper)
     IntelPowerLimits.cs   PL1/PL2 + package energy via MSRs
     IntelMSR.bin          embedded PawnIO module
+    Pdh.cs                performance counter (PDH) P/Invoke, English paths, wildcard arrays
+    SystemMetrics.cs      CPU utility/effective MHz, GPU busiest engine + shared mem, RAM
   Features/
     Modes.cs              mode ids + per-mode config accessors (overlay, fan, PL)
     ModeControl.cs        apply a mode; AC/DC memory; Ctrl+Shift+F5 cycle
@@ -90,11 +92,14 @@ src/
     FanControl.cs         1 Hz loop thread + watchdog thread, EC writes, hand-back, Status for the UI
     FanCurve.cs           8-point curve, parse/normalize/interpolate
     PowerLimitControl.cs  per-mode PL apply, PowerLimitKeeper (pure re-assert policy), restore on exit
+    Telemetry.cs          1 Hz on-demand sampler (ref-counted Use()), 300-sample history, recording
+    TelemetrySample.cs    one row + CSV format (the header is the format version)
+    SessionRecorder.cs    sessions\session-*.csv writer/loader, prune to 20, 12 h auto-stop
     PowerNative.cs        Windows power overlay (powrprof)
     BatteryControl.cs     charge limit persistence/reapply
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
   Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest)
-  UI/                     SettingsForm (main), FansForm (Fans + Power), FanCurveEditor, RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
+  UI/                     SettingsForm (main), FansForm (Fans + Power), MonitorForm + LineChart, FanCurveEditor, RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit; FanControllerTests (safety rules + random-walk invariants)
 ```
@@ -146,6 +151,10 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - Releasing to the EC is *quieter* than manual 100 %, not the same thing. The EC curve tops out at about 3.2k rpm.
 - PECI reads in about 1 °C steps with ±1 °C jitter. Any threshold without hysteresis will flap.
 - A process started from the autostart task has cwd = System32, which is how it decides to start hidden.
+- **UI can't be checked by launching the app here.** Starting a second instance closes the user's running one. To look at a form,
+  render it offscreen from a throwaway xunit test (STA thread, `Location = (-4000,-4000)`, `Show()`, `DrawToBitmap`) into the scratchpad, then delete the test.
+- `IntelPowerLimits.GetPackagePower()` keeps one shared last-energy state. With two callers (Monitor and Fans + Power), each one's
+  interval gets shorter. The readings are still correct averages.
 
 ## Conventions
 

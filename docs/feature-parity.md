@@ -26,13 +26,13 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | **Charge limit** | ✅ verified that charging stops | ✅ set/readback; stop not checked | Reapply on every boot (volatile) |
 | **Monitoring: temperatures** | ✅ all EC sensors + coretemp package, scaled to crit | ✅ 5 EC sensors | |
 | Monitoring: fan rpm/duty/owner | ✅ | ✅ rpm + duty/"EC auto" | |
-| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | 🟡 package watts code exists (PawnIO, admin) but isn't shown | Without admin: PDH "Power Meter"/EMI counters? Needs research |
-| Monitoring: CPU load %, busy MHz, throttle | ✅ | ❌ | PDH `Processor Information` counters (no admin) |
-| Monitoring: GPU load, achieved vs requested clock | ✅ | ❌ | PDH `GPU Engine` counters for load. Clock needs research |
-| Monitoring: memory / swap | ✅ | ❌ | `GlobalMemoryStatusEx` |
+| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | 🟡 package W (PawnIO + admin) and system W (battery); no CPU/GPU split | ADR 0011 |
+| Monitoring: CPU load %, busy MHz, throttle | ✅ | 🟡 load % and effective all-core MHz (PDH); no busy MHz or throttle reasons | ADR 0011 |
+| Monitoring: GPU load, achieved vs requested clock | ✅ | 🟡 load (busiest engine) and shared memory; no clock | No Windows counter for the Intel achieved clock |
+| Monitoring: memory / swap | ✅ | ✅ RAM (no swap) | |
 | Monitoring: battery W, time left | ✅ | ✅ watts, % and health | |
-| Live charts | ✅ 6 cards, 300-sample window | ❌ | |
-| Session recording (CSV) | ✅ | ❌ | |
+| Live charts | ✅ 6 cards, 300-sample window | ✅ 6 cards, 300 samples, reopens saved sessions | Rendered offscreen; not yet seen live |
+| Session recording (CSV) | ✅ | ✅ 21 columns, 12 h auto-stop, keeps 20 | |
 | Overlay / in-game HUD | ✅ overlay window + MangoHud | ❌ | |
 | **Keyboard backlight / power LED** | ❌ | ✅ | Windows-only extra |
 | **Refresh-rate switching** | ❌ | ✅ 60/max/auto | Windows-only extra |
@@ -51,7 +51,7 @@ This is in priority order. Safety comes first, because fan control and PL writes
 3. **Power limits: make them true or remove them.** Partly done 2026-10-05 (ADR 0010): defaults, re-assert, restore, and `--hwtest pl` built. Waiting on the hardware run. Install PawnIO, run elevated, and check whether `0x610` binds under a load
    longer than 32 s. If not, look into the MCHBAR copy. Re-base defaults on the 35 W ceiling, add re-assert after an overlay change,
    and decide what happens on exit.
-4. **Monitoring** without admin: CPU load, GPU load (PDH), memory, plus package watts when PawnIO is available.
+4. ~~**Monitoring**~~: built 2026-10-05 (ADR 0011). Originally: without admin, CPU load, GPU load (PDH), memory, plus package watts when PawnIO is available.
    Then live charts on a "Monitor" view.
 5. **Named profiles** in place of three fixed modes: named fan curves, save/delete, and keep Silent/Balanced/Turbo as built-ins.
 6. Release engineering: CI done 2026-10-05. Still to do: GitHub release, unit tests for `FanCurve` and the curve controller (an EC interface behind a fake).

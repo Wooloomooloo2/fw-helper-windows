@@ -118,6 +118,10 @@ namespace FwHelper.UI
             };
             Controls.Add(_startupCheck);
 
+            var monitor = MakeButton("Monitor", W - M - 2 * 90 - 8, y, 90, 30);
+            monitor.Secondary = true;
+            monitor.Click += (_, _) => Program.ShowMonitor();
+
             var quit = MakeButton("Quit", W - M - 90, y, 90, 30);
             quit.Secondary = true;
             quit.Click += (_, _) => Program.Exit();

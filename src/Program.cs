@@ -163,13 +163,31 @@ namespace FwHelper
                 menu.Items.Add(new ToolStripMenuItem($"Charge limit {limit}%", null, (_, _) => BatteryControl.SetLimit(limit)));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open", null, (_, _) => SettingsForm.ShowAtTray());
+            menu.Items.Add("Monitor", null, (_, _) => ShowMonitor());
+            var stopRecording = new ToolStripMenuItem("Stop recording", null, (_, _) => Telemetry.StopRecording());
+            menu.Items.Add(stopRecording);
             menu.Items.Add("Open log", null, (_, _) => ProcessHelper.OpenUrl(Logger.LogFile));
             menu.Items.Add("Quit", null, (_, _) => Exit());
             menu.Opening += (_, _) =>
             {
                 for (int i = 0; i < Modes.Count; i++) modeItems[i].Checked = i == ModeControl.CurrentMode;
+                stopRecording.Visible = Telemetry.IsRecording;
             };
             return menu;
+        }
+
+        private static MonitorForm? _monitor;
+
+        public static void ShowMonitor()
+        {
+            if (_monitor is null || _monitor.IsDisposed)
+            {
+                _monitor = new MonitorForm();
+                _monitor.FormClosed += (_, _) => _monitor = null;
+            }
+            _monitor.Show();
+            if (_monitor.WindowState == FormWindowState.Minimized) _monitor.WindowState = FormWindowState.Normal;
+            _monitor.Activate();
         }
 
         public static void UpdateTrayText(int? cpu, int fanRpm, BatteryInfo? batt)
@@ -184,6 +202,7 @@ namespace FwHelper
         {
             try { FanControl.Stop(); } catch { }
             try { PowerLimitControl.Shutdown(); } catch { }
+            try { Telemetry.StopRecording(); } catch { }
         }
 
         public static void Exit()

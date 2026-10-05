@@ -22,3 +22,4 @@ When a Windows ADR refers to a Linux ADR, it says "Linux ADR NNNN". The two seri
 | [0008](0008-g-helper-style-runtime-plumbing.md) | Flat JSON config, Task Scheduler autostart, newest instance wins | Accepted |
 | [0009](0009-fan-safety-parity-and-guardian.md) | Fan safety at Linux parity: pure controller, watchdog, guardian process | Accepted |
 | [0010](0010-power-limits-keep-and-restore.md) | Power limits: measured defaults, re-assert against firmware, restore on exit | Accepted |
+| [0011](0011-monitoring-via-pdh-and-ec.md) | Monitoring: PDH counters + EC, sampled on demand, recorded as CSV | Accepted |

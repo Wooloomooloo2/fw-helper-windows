@@ -32,6 +32,8 @@ tray app. Run them from `publish\`.
 | ☐ | Charge limit after reboot | Set it to 80 %, reboot, and before FW-Helper starts, read it in the BIOS or with `framework_tool --charge-limit` | We expect 100 % (Linux finding), and FW-Helper puts back 80 % at startup |
 | ☐ | Autostart | Settings → Run on startup. Sign out and back in | The tray icon appears, `starting` is in the log, the window stays hidden |
 | ☐ | PL keep (only if the `pl` test passed) | Turn on the Turbo override, then switch the Windows power mode from Settings and back | Either no drift, or `PL drifted … rewriting` lines appear, at most 5 of them |
+| ☐ | Monitor vs Task Manager | Open Monitor (main window or tray) next to Task Manager → Performance, and run a load | CPU % and GPU % follow Task Manager within a few %. Temperatures, fan and RAM look plausible. The window looks right in both light and dark theme |
+| ☐ | Recording | Monitor → Record, wait 1 min, close Monitor, wait 1 min, tray → Stop recording, then Monitor → Open session | The CSV has about 120 rows and the session opens in the charts. Recording kept going while the window was closed |
 | ☐ | PL restore | With an override active, quit FW-Helper | `PL MSR restored` appears in the log |
 
 ## Results log

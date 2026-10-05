@@ -16,6 +16,7 @@ and no admin rights needed for the core features.
 | Display | 60Hz / max Hz / Auto (max on AC, 60Hz on battery) | `ChangeDisplaySettingsEx` |
 | Lighting | Keyboard backlight, power button LED level | EC `PWM_SET_KEYBOARD_BACKLIGHT`, Framework `FP_LED_LEVEL_CONTROL` |
 | CPU power limits | Experimental per-mode PL1/PL2 override | `MSR_PKG_POWER_LIMIT` via [PawnIO](https://pawnio.eu) (admin + PawnIO required) |
+| Monitoring | Live charts: CPU/GPU load, CPU clock, power, temperatures, fan, memory; CSV session recording | Performance counters (PDH), EC, battery; package W via PawnIO |
 | Startup | Run at logon via Task Scheduler | |
 
 ### Fan safety
