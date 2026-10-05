@@ -1,6 +1,6 @@
 # 0006 — CPU power limits via PawnIO MSR writes: optional and experimental
 
-- **Status:** Accepted (experimental), **amended by [0010](0010-power-limits-keep-and-restore.md)**. **Not yet verified on hardware.**
+- **Status:** **Superseded by [0016](0016-driverless-power-and-temperature-control.md)** (PawnIO removed, 2026-10-05)
 - **Date:** 2026-10-03 (recorded retrospectively 2026-10-04)
 
 ## Context

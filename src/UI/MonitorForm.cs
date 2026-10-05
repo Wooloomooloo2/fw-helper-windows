@@ -14,7 +14,7 @@ namespace FwHelper.UI
         private static readonly Color Package = Color.FromArgb(235, 70, 70);
         private static readonly Color Memory = Color.FromArgb(160, 110, 255);
 
-        private readonly LineChart _load, _clock, _power, _temp, _fan, _memory;
+        private readonly LineChart _load, _clock, _power, _temp, _fan, _memory, _fps, _battery;
         private readonly LineChart[] _charts;
         private readonly Label _status;
         private readonly RButton _record, _open, _live;
@@ -61,6 +61,7 @@ namespace FwHelper.UI
             _clock = Card(1, 0, "CPU clock (effective)");
             _clock.Unit = " MHz";
             _clock.Series.Add(new("CPU", Cpu, s => s.CpuMhz));
+            _clock.Series.Add(new("Cap", Package, s => s.FreqCapMHz));
             _clock.Note = s => s.Throttle is { Length: > 0 } t ? "limited by " + t : null;
 
             _power = Card(0, 1, "Power");
@@ -69,7 +70,8 @@ namespace FwHelper.UI
             _power.Series.Add(new("CPU", Cpu, s => s.CpuW, "0.0"));
             _power.Series.Add(new("GPU", Gpu, s => s.GpuW, "0.0"));
             _power.Series.Add(new("System", Battery, s => s.BatteryW, "0.0"));
-            _power.Note = s => s.PackageW is null ? "package: needs admin + PawnIO" : null;
+            _power.Series.Add(new("DRAM", Memory, s => s.DramW, "0.0"));
+            _power.Note = s => s.PackageW is null ? "Energy Meter unavailable" : null;
 
             _temp = Card(1, 1, "Temperature");
             _temp.Unit = "°C";
@@ -91,8 +93,18 @@ namespace FwHelper.UI
             _memory.Series.Add(new("RAM", Memory, s => s.MemUsedGb, "0.0"));
             _memory.Series.Add(new("GPU shared", Gpu, s => s.GpuSharedGb, "0.0"));
 
-            _charts = new[] { _load, _clock, _power, _temp, _fan, _memory };
-            y += 3 * (CardH + Gap);
+            _fps = Card(0, 3, "FPS");
+            _fps.Series.Add(new("FPS", RForm.Accent, s => s.Fps));
+            _fps.Note = s => s.FpsApp ?? Telemetry.FpsError;
+
+            _battery = Card(1, 3, "Battery");
+            _battery.Unit = "%";
+            _battery.YMax = 100;
+            _battery.Series.Add(new("Charge", Battery, s => s.BatteryPct));
+            _battery.Note = s => s.OnAC ? "on AC" : s.BatteryMinutes is int m ? $"{m / 60}h{m % 60:00} left · {s.BatteryW:0.0} W" : null;
+
+            _charts = new[] { _load, _clock, _power, _temp, _fan, _memory, _fps, _battery };
+            y += 4 * (CardH + Gap);
 
             ClientSize = new Size(W, y + M - Gap);
             ResumeLayout(false);
@@ -141,7 +153,8 @@ namespace FwHelper.UI
 
             // PL1 reference line follows the active override
             _power.Lines.Clear();
-            if (data.LastOrDefault()?.PL1 is int pl1) _power.Lines.Add(new(pl1, $"PL1 {pl1}W"));
+            if (data.LastOrDefault()?.PL1 is int target) _power.Lines.Add(new(target, $"target {target}W"));
+            else _power.Lines.Add(new(OverlayForm.EcPl1W, $"EC PL1 {OverlayForm.EcPl1W}W"));
             _memory.YMax = data.LastOrDefault()?.MemTotalGb is double total and > 0 ? Math.Ceiling(total) : null;
 
             foreach (var c in _charts) c.SetData(data, capacity);

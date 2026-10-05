@@ -62,7 +62,8 @@ namespace FwHelper.Features
         };
 
         /// <summary>Per-profile keys copied when a profile is duplicated and removed when it's deleted.</summary>
-        private static readonly string[] ProfileKeys = { "overlay", "fan_custom", "fan_curve", "pl_custom", "pl1", "pl2", "name", "base" };
+        // pl_custom/pl1/pl2 are PawnIO-era keys (ADR 0016): no longer used, still cleaned up on delete
+        private static readonly string[] ProfileKeys = { "overlay", "fan_custom", "fan_curve", "power_target", "name", "base", "pl_custom", "pl1", "pl2" };
 
         public static bool IsBuiltIn(int mode) => mode is >= 0 and < BuiltInCount;
 
@@ -95,8 +96,7 @@ namespace FwHelper.Features
             SetOverlay(id, GetOverlay(copyFrom));
             SetCustomFan(id, IsCustomFan(copyFrom));
             SetCurve(id, GetCurve(copyFrom));
-            SetPowerLimit(id, IsPowerLimit(copyFrom));
-            SetPL(id, GetPL1(copyFrom), GetPL2(copyFrom));
+            GovernorControl.SetPowerTarget(id, GovernorControl.PowerTarget(copyFrom));
             AppConfig.Set(AppConfig.ModeKey("name", id), ProfileList.CleanName(name) ?? $"Profile {id}");
             AppConfig.Set(AppConfig.ModeKey("base", id), Base(copyFrom));
 
@@ -137,17 +137,6 @@ namespace FwHelper.Features
             FanCurve.Parse(AppConfig.GetString(AppConfig.ModeKey("fan_curve", mode))) ?? FanCurve.Default(Base(mode));
         public static void SetCurve(int mode, FanCurve curve) => AppConfig.Set(AppConfig.ModeKey("fan_curve", mode), curve.ToString());
 
-        public static bool IsPowerLimit(int mode) => AppConfig.Get(AppConfig.ModeKey("pl_custom", mode), 0) == 1;
-        public static void SetPowerLimit(int mode, bool on) => AppConfig.Set(AppConfig.ModeKey("pl_custom", mode), on ? 1 : 0);
-
-        // Defaults from the Linux measurements (docs/hardware-baseline.md): real PL1 ceiling ~35 W, stock PL2 60 W,
-        // 25 W is the gaming sweet spot (same fps as 35 W, quieter)
-        public static int GetPL1(int mode) => AppConfig.Get(AppConfig.ModeKey("pl1", mode), Base(mode) switch { Silent => 15, Turbo => 35, _ => 25 });
-        public static int GetPL2(int mode) => AppConfig.Get(AppConfig.ModeKey("pl2", mode), Base(mode) switch { Silent => 30, Turbo => 64, _ => 60 });
-        public static void SetPL(int mode, int pl1, int pl2)
-        {
-            AppConfig.Set(AppConfig.ModeKey("pl1", mode), pl1);
-            AppConfig.Set(AppConfig.ModeKey("pl2", mode), pl2);
-        }
+        // Power target per profile: GovernorControl.PowerTarget / SetPowerTarget ("power_target_<id>")
     }
 }

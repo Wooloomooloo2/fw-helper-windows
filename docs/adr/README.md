@@ -17,13 +17,15 @@ When a Windows ADR refers to a Linux ADR, it says "Linux ADR NNNN". The two seri
 | [0003](0003-ec-via-framework-crosec-driver.md) | EC access through Framework's CrosEC driver IOCTLs (no admin) | Accepted |
 | [0004](0004-modes-delegate-to-windows-power-mode.md) | Modes drive the Windows power mode; Intel DTT does the rest | Accepted |
 | [0005](0005-software-fan-curve-with-ec-handback.md) | Software fan curve that always hands back to the EC | Accepted, amended by 0009 |
-| [0006](0006-power-limits-via-pawnio-msr.md) | PL1/PL2 via PawnIO MSR writes: optional, experimental | Accepted (unverified), amended by 0010 |
+| [0006](0006-power-limits-via-pawnio-msr.md) | PL1/PL2 via PawnIO MSR writes: optional, experimental | Superseded by 0016 |
 | [0007](0007-charge-limit-via-ec-0x3e03.md) | Charge limit via Framework EC command 0x3E03 | Accepted, verified |
 | [0008](0008-g-helper-style-runtime-plumbing.md) | Flat JSON config, Task Scheduler autostart, newest instance wins | Accepted |
 | [0009](0009-fan-safety-parity-and-guardian.md) | Fan safety at Linux parity: pure controller, watchdog, guardian process | Accepted (battery reasoning corrected by 0013) |
-| [0010](0010-power-limits-keep-and-restore.md) | Power limits: measured defaults, re-assert against firmware, restore on exit | Accepted |
+| [0010](0010-power-limits-keep-and-restore.md) | Power limits: measured defaults, re-assert against firmware, restore on exit | Superseded by 0016 |
 | [0011](0011-monitoring-via-pdh-and-ec.md) | Monitoring: PDH counters + EC, sampled on demand, recorded as CSV | Accepted |
 | [0012](0012-user-profiles-and-named-curves.md) | User profiles with stable ids, named fan-curve library | Accepted |
 | [0013](0013-learned-ec-floor-and-peci-only-control.md) | Learned EC floor, PECI-only control input, testable fan loop | Accepted |
 | [0014](0014-windows-service-split.md) | Split into a Windows service + user tray app? | **Proposed** |
 | [0015](0015-cli-over-named-pipe-and-overlay.md) | Command line over a per-user named pipe; overlay window | Accepted |
+| [0016](0016-driverless-power-and-temperature-control.md) | Driverless power/temperature governor + EC backstop; PawnIO removed; no undervolting | Accepted |
+| [0017](0017-fps-capture-and-game-overlay.md) | FPS from present events (ETW, no admin); G-Helper-style overlay | Accepted |

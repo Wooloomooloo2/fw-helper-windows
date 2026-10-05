@@ -1,6 +1,6 @@
 # 0010 — Power limits: measured defaults, re-assert against firmware, restore on exit
 
-- **Status:** Accepted. Amends [0006](0006-power-limits-via-pawnio-msr.md)
+- **Status:** **Superseded by [0016](0016-driverless-power-and-temperature-control.md)** (PawnIO removed, 2026-10-05)
 - **Date:** 2026-10-05
 
 ## Context

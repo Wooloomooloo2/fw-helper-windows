@@ -15,16 +15,19 @@
 - The fan curve follows PECI only. If PECI is lost, the fan goes back to the EC instead of following a board sensor.
 - `--selftest` also reports the EC's own duty, who owns the fan, and each sensor's EC thermal thresholds.
 
-### Power limits (ADR 0010)
-- Defaults and slider ranges now follow the measured board limits: PL1 8–35 W, PL2 15–80 W, and defaults of 15/30, 25/60 and 35/64 W.
-- If firmware overrides a limit after a power-mode change, it is re-applied, up to 5 times.
-- The original limits are restored when the override is turned off or FW-Helper exits.
+### Power & temperature limits, without a driver (ADR 0016)
+- **Power target per profile** (8–35 W): a governor holds the package at that average by lowering the CPU's maximum frequency in the Windows
+  power plan. It limits the CPU cores; GPU power isn't capped.
+- **Temperature cap** (70–95 °C, all profiles): the same governor holds the CPU package temperature. An optional **EC backstop** makes the EC
+  hard-throttle the CPU 5 °C above the cap.
+- **PawnIO has been removed.** Nothing needs admin rights or a third-party driver. The EC owns PL1/PL2 on this laptop (35/60 W) and can't be overridden from Windows.
+- The original power-plan values and EC thresholds are always restored: when you quit, after a crash or a forced kill (by the guard), and at the next start.
+- Undervolting isn't supported: Intel locks it on this CPU.
 
-### Monitoring (ADR 0011)
-- New **Monitor** window: live charts of CPU/GPU load, CPU clock, power, temperatures, fan and memory. No admin needed.
+### Monitoring (ADR 0011, 0017)
+- New **Monitor** window: live charts of CPU/GPU load, CPU clock (and the governor's cap), package/CPU/GPU/DRAM watts, temperatures, fan,
+  memory, **FPS** and battery. No admin needed.
 - Sessions can be recorded to CSV and opened again later. Columns are read by name, so older recordings still open.
-- With PawnIO and admin: CPU and GPU watts, plus what is limiting the clocks (EDP, PL1, thermal...).
-
 
 ### Profiles (ADR 0012)
 - You can create **your own profiles** next to Silent/Balanced/Turbo, and rename or delete them.
@@ -35,12 +38,13 @@
 ### Command line and overlay (ADR 0015)
 - `FwHelper.exe --status`, `--profiles`, `--mode <name|id>`, `--charge-limit <50-100>`, `--fan-floor on|off`. These control the running app over a
   named pipe that only your own account can open. `--status` also works without the app running.
-- **Overlay:** a small always-on-top readout of CPU, GPU, power and fan (tray → Overlay).
+- **Overlay** (tray → Overlay, ADR 0017): FPS and the game's name, package °C, CPU/GPU load and watts, power against the limit, RAM, GPU memory and battery.
+  It stays on top of windowed and borderless games without taking focus.
 
 ### Tooling
-- `--hwtest fansweep|watchdog|pl|all` runs targeted hardware experiments.
-- CI builds with warnings as errors, runs 144 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
-- Project documentation: `CLAUDE.md`, ADRs 0001–0015, the hardware baseline, the feature comparison with the Linux version, and the test plan.
+- `--hwtest fansweep|watchdog|governor|all` runs targeted hardware experiments.
+- CI builds with warnings as errors, runs 155 unit tests (including the fan loop against a fake EC) and publishes the exe on every push. Pushing a tag creates a draft release.
+- Project documentation: `CLAUDE.md`, ADRs 0001–0017, the hardware baseline, the feature comparison with the Linux version, and the test plan.
 
 ## 0.1.0 (2026-10-03)
 

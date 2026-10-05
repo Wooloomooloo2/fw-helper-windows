@@ -20,20 +20,23 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Built-in ladder | ✅ quiet / balanced / performance / turbo / max, plus game / retro | 🟡 Silent / Balanced / Turbo | |
 | AC/battery auto-switch | ✅ (off by default) | ✅ (always on, remembered per source) | |
 | OS power-profile delegation | ✅ PPD | ✅ Windows power overlay | |
-| **Power limits (TDP)** | ✅ PL1 via kernel RAPL MMIO, **no extra software**, re-assert loop, 8–35 W | 🟡 PL1+PL2 via PawnIO MSR `0x610`, admin, never run | Likely wrong register (MMIO governs), ceiling about 35 W. See ADR 0006 |
+| **Power limits (TDP)** | ✅ PL1 via kernel RAPL MMIO, **no extra software**, re-assert loop, 8–35 W | 🟡 **No driver:** a per-profile power target held by a frequency-cap governor (Energy Meter + `PROCFREQMAX`); CPU cores only. EC owns PL1/PL2 and can't be overridden | ADR 0016. Whether the cap binds is still to test (`--hwtest governor`) |
+| Temperature cap | ❌ | 🟡 governor on PECI, plus EC PROCHOT backstop (`0x0050`) | Windows-only extra. ADR 0016 |
+| Undervolting | ❌ (Linux ADR 0007: locked) | ❌ locked (MSR `0x150`), not offered | ADR 0016 |
 | Core parking | ✅ | ❌ | On Windows this would be the power-plan parking policy or affinity, not offlining. Low value (+2 %) |
 | GPU frequency cap | ✅ | ❌ | No obvious Windows route without the Intel driver API. Low value (+4.9 %) |
 | **Charge limit** | ✅ verified that charging stops | ✅ set/readback; stop not checked | Reapply on every boot (volatile) |
 | **Monitoring: temperatures** | ✅ all EC sensors + coretemp package, scaled to crit | ✅ 5 EC sensors | |
 | Monitoring: fan rpm/duty/owner | ✅ | ✅ rpm + duty/"EC auto" | |
-| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | 🟡 package, CPU (PP0) and GPU (PP1) watts via PawnIO + admin, plus system W (battery). Code only | ADR 0011 amendment |
-| Monitoring: CPU load %, busy MHz, throttle | ✅ | 🟡 load % and effective MHz (PDH); throttle reasons via PawnIO (code only); no busy MHz | ADR 0011 amendment |
+| Monitoring: package / CPU / GPU watts | ✅ RAPL deltas, 1 Hz, 0.1 W | ✅ package, CPU (PP0), GPU (PP1) and DRAM watts from Windows Energy Meter (no driver, verified) | ADR 0016 |
+| Monitoring: CPU load %, busy MHz, throttle | ✅ | 🟡 load % and effective MHz (PDH); throttling = EC soft/hard (`0x3E22`) + governor cap; no busy MHz or per-domain reasons | ADR 0016 |
 | Monitoring: GPU load, achieved vs requested clock | ✅ | 🟡 load (busiest engine) and shared memory; no clock | No Windows counter for the Intel achieved clock |
 | Monitoring: memory / swap | ✅ | ✅ RAM (no swap) | |
 | Monitoring: battery W, time left | ✅ | ✅ watts, % and health | |
 | Live charts | ✅ 6 cards, 300-sample window | ✅ 6 cards, 300 samples, reopens saved sessions | Rendered offscreen; not yet seen live |
 | Session recording (CSV) | ✅ | ✅ 21 columns, 12 h auto-stop, keeps 20 | |
-| Overlay / in-game HUD | ✅ overlay window + MangoHud | 🟡 topmost overlay window (not over exclusive full-screen); no in-game HUD | ADR 0015 |
+| Overlay / in-game HUD | ✅ overlay window + MangoHud | 🟡 overlay with **FPS** (ETW, no admin, verified), temps, load, watts, % used; not over exclusive full-screen | ADR 0017 |
+| FPS | ✅ via MangoHud | ✅ ETW present events (DXGI/D3D9/DxgKrnl), verified on a game | ADR 0017 |
 | **Keyboard backlight / power LED** | ❌ | ✅ | Windows-only extra |
 | **Refresh-rate switching** | ❌ | ✅ 60/max/auto | Windows-only extra |
 | Tray icon + global hotkey | ❌ | ✅ `Ctrl+Shift+F5` | |
@@ -55,12 +58,12 @@ Safety first: fan control and PL writes are the parts that can do damage.
 
 ### Waiting on hardware answers
 - **Fan scale:** Windows 100 % → 7.3k rpm, against Linux full duty → about 5.2k. `--hwtest fansweep`.
-- **Does MSR `0x610` bind PL1?** Linux says the MMIO/MCHBAR copy governs. `--hwtest pl`. If it doesn't bind, look for a PawnIO route to MCHBAR, or drop the feature.
+- **Does a power-plan frequency cap bind on this CPU?** `--hwtest governor`. If not, ADR 0016 falls back to the "maximum processor state" settings.
 - **Service split** (ADR 0014, proposed). Decide after the test session.
 
 ### Remaining gaps compared with Linux
 - Achieved GPU clock. Windows has no counter for it, and it would need the Intel GPU driver API or MMIO.
-- Busy-weighted CPU MHz. Possible from the APERF/MPERF MSRs via PawnIO.
+- Busy-weighted CPU MHz and per-domain throttle reasons: both need MSRs, which means a driver (dropped in ADR 0016).
 - In-game HUD over exclusive full-screen (the overlay window covers windowed and borderless games).
 - CLI commands for fan duty and PL (left out on purpose: GUI-only for now).
 - Core parking and a GPU frequency cap. Linux measured little benefit (+2 %, +4.9 %), so this is low priority.

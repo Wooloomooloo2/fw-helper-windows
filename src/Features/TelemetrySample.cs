@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace FwHelper.Features
 {
-    /// <summary>One 1 Hz telemetry row. Null = not available (no sensor, no PawnIO, on AC...).</summary>
+    /// <summary>One 1 Hz telemetry row. Null = not available (no sensor, no reading, on AC...). PL1 is the power target (ADR 0016).</summary>
     public record TelemetrySample(
         DateTime Time,
         string Mode,
@@ -27,7 +27,12 @@ namespace FwHelper.Features
         int? PL1,
         double? CpuW = null,
         double? GpuW = null,
-        string? Throttle = null)
+        string? Throttle = null,
+        double? DramW = null,
+        int? FreqCapMHz = null,
+        double? Fps = null,
+        string? FpsApp = null,
+        int? BatteryMinutes = null)
     {
         /// <summary>CSV columns. Readers map by name, so columns can be added at the end without breaking old sessions.</summary>
         public static readonly string[] Columns =
@@ -35,6 +40,7 @@ namespace FwHelper.Features
             "time", "mode", "on_ac", "cpu_pct", "cpu_mhz", "gpu_pct", "gpu_engine", "gpu_shared_gb", "mem_used_gb", "mem_total_gb",
             "cpu_c", "battery_c", "ddr_c", "board_c", "fan_rpm", "fan_duty", "fan_status", "battery_pct", "battery_w", "package_w", "pl1_w",
             "cpu_w", "gpu_w", "throttle",
+            "dram_w", "freq_cap_mhz", "fps", "fps_app", "battery_min",
         };
 
         public static string CsvHeader => string.Join(",", Columns);
@@ -49,7 +55,8 @@ namespace FwHelper.Features
             Num(CpuTemp), Num(BatteryTemp), Num(DdrTemp), Num(BoardTemp),
             FanRpm.ToString(Inv), FanDuty.ToString(Inv), Text(FanStatus),
             Num(BatteryPct), Num(BatteryW, "0.0"), Num(PackageW, "0.0"), Num(PL1),
-            Num(CpuW, "0.0"), Num(GpuW, "0.0"), Text(Throttle));
+            Num(CpuW, "0.0"), Num(GpuW, "0.0"), Text(Throttle),
+            Num(DramW, "0.0"), Num(FreqCapMHz), Num(Fps, "0"), Text(FpsApp), Num(BatteryMinutes));
 
         /// <summary>Column name → index for a header line; null if it isn't a FW-Helper session header.</summary>
         public static IReadOnlyDictionary<string, int>? Layout(string header)
@@ -77,7 +84,8 @@ namespace FwHelper.Features
                     I(F("cpu_c")), I(F("battery_c")), I(F("ddr_c")), I(F("board_c")),
                     I(F("fan_rpm")) ?? 0, I(F("fan_duty")) ?? -1, F("fan_status"), I(F("battery_pct")),
                     D(F("battery_w")), D(F("package_w")), I(F("pl1_w")),
-                    D(F("cpu_w")), D(F("gpu_w")), S(F("throttle")));
+                    D(F("cpu_w")), D(F("gpu_w")), S(F("throttle")),
+                    D(F("dram_w")), I(F("freq_cap_mhz")), D(F("fps")), S(F("fps_app")), I(F("battery_min")));
             }
             catch (FormatException)
             {

@@ -87,6 +87,7 @@ namespace FwHelper
             ModeControl.ModeChanged += () => TrayIcon.Icon = TrayIcons.ForMode(ModeControl.CurrentMode, 32);
 
             FanControl.Init();
+            GovernorControl.Init(); // undo frequency caps / EC thresholds a crashed run left behind
             ApplyAll();
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -221,7 +222,7 @@ namespace FwHelper
         private static void SafeShutdown()
         {
             try { FanControl.Stop(); } catch { }
-            try { PowerLimitControl.Shutdown(); } catch { }
+            try { GovernorControl.Shutdown(); } catch { }
             try { Telemetry.StopRecording(); } catch { }
         }
 

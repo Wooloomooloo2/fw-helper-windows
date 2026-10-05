@@ -80,24 +80,49 @@ namespace FwHelper.Tests
             Assert.Equal(expected, CommandProtocol.ResolveProfile(arg, Profiles));
         }
 
+        private static string Row(IReadOnlyList<OverlayRow> rows, string key) => rows.Single(r => r.Key == key).Value;
+
         [Fact]
-        public void Overlay_text_handles_missing_values()
+        public void Overlay_rows_handle_missing_values()
         {
-            var s = new TelemetrySample(DateTime.Now, "Balanced", false, null, null, null, null, null, 8, 32,
+            var s = new TelemetrySample(DateTime.Now, "Balanced", true, null, null, null, null, null, 8, 32,
                 null, null, null, null, 0, -1, "EC auto", null, null, null, null);
-            string text = OverlayForm.Format(s);
-            Assert.Contains("CPU", text);
-            Assert.Contains("rpm EC", text);
-            Assert.Equal(4, text.Split('\n').Length);
+            var rows = OverlayForm.Rows(s);
+            Assert.Equal(new[] { "FPS", "CPU", "GPU", "PKG", "RAM", "BAT" }, rows.Select(r => r.Key));
+            Assert.Equal("–", Row(rows, "FPS"));
+            Assert.Equal("25%  (8.0 / 32 GB)", Row(rows, "RAM"));
+            Assert.Contains("AC", Row(rows, "BAT"));
         }
 
         [Fact]
-        public void Overlay_prefers_package_power_over_system_draw()
+        public void Overlay_shows_fps_watts_and_percent_of_limit()
         {
-            var s = new TelemetrySample(DateTime.Now, "Turbo", false, 50, 3000, 20, "3D", 1, 8, 32,
-                80, 35, 40, 45, 4000, 60, "curve", 80, 25.0, 30.0, 35, 22.0, 6.0);
-            Assert.Contains("30.0W pkg", OverlayForm.Format(s));
-            Assert.Contains("4000 rpm 60%", OverlayForm.Format(s));
+            var s = new TelemetrySample(DateTime.Now, "Turbo", false, 50, 3200, 20, "3D", 2.7, 16, 32,
+                80, 35, 40, 45, 4000, 60, "curve", 80, 12.0, 20.0, 25, 14.5, 4.2, "", 1.0, 2400, 60, "DarkSoulsIII", 130);
+            var rows = OverlayForm.Rows(s);
+            Assert.Equal("60  DarkSoulsIII", Row(rows, "FPS"));
+            Assert.Contains("80°C", Row(rows, "CPU"));
+            Assert.Contains("14.5 W", Row(rows, "CPU"));
+            Assert.Contains("4.2 W", Row(rows, "GPU"));
+            Assert.Contains("2.7 GB", Row(rows, "GPU"));
+            Assert.Equal("20.0 W / 25 W (80%)  cap 2.4 GHz", Row(rows, "PKG"));
+            Assert.Equal("80%  2h10  12.0 W", Row(rows, "BAT"));
+        }
+
+        [Fact]
+        public void Overlay_power_limit_defaults_to_the_ec_pl1()
+        {
+            var s = new TelemetrySample(DateTime.Now, "Balanced", true, 10, 2000, 5, null, null, 8, 32,
+                60, 30, 40, 40, 2000, -1, "EC auto", 85, null, 17.5, null);
+            Assert.StartsWith("17.5 W / 35 W (50%)", Row(OverlayForm.Rows(s), "PKG"));
+        }
+
+        [Fact]
+        public void Overlay_says_why_fps_is_missing()
+        {
+            var s = new TelemetrySample(DateTime.Now, "Balanced", true, 10, 2000, 5, null, null, 8, 32,
+                60, 30, 40, 40, 2000, -1, "EC auto", 85, null, 17.5, null);
+            Assert.Equal("n/a", Row(OverlayForm.Rows(s, "no rights"), "FPS"));
         }
     }
 }

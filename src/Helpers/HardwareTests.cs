@@ -12,7 +12,7 @@ namespace FwHelper.Helpers
     public static class HardwareTests
     {
         public const string Arg = "--hwtest";
-        public static readonly string[] Names = { "fansweep", "watchdog", "pl" };
+        public static readonly string[] Names = { "fansweep", "watchdog", "governor" };
 
         public static void Run(string[] args)
         {
@@ -41,7 +41,7 @@ namespace FwHelper.Helpers
                     {
                         case "fansweep": FanSweep(report); break;
                         case "watchdog": Watchdog(report); break;
-                        case "pl": PowerLimits(report); break;
+                        case "governor": GovernorTest(report); break;
                     }
                 }
                 catch (Exception ex)
@@ -51,7 +51,7 @@ namespace FwHelper.Helpers
                 finally
                 {
                     FrameworkEc.SetFanAuto();
-                    if (IntelPowerLimits.IsAvailable) IntelPowerLimits.Restore();
+                    GovernorControl.RestoreSavedCaps("after hwtest");
                 }
                 summary.AppendLine($"{test}: {report.Verdict}");
                 report.Save();
@@ -130,39 +130,52 @@ namespace FwHelper.Helpers
             r.Verdict = sawCurve && during is not null && recovered ? "PASS" : "FAIL";
         }
 
-        // ---------------- pl ----------------
+        // ---------------- governor ----------------
 
-        /// <summary>Does writing MSR 0x610 through PawnIO actually bind package power? Sustained all-core load, > PL1 window (32 s).</summary>
-        private static void PowerLimits(Report r)
+        /// <summary>
+        /// ADR 0016's open question first: does a power-plan frequency cap bind on this CPU at all? Then: does the governor hold a
+        /// 15 W target? Sustained all-core load, measured with Energy Meter (no driver). Restores the user's caps afterwards.
+        /// </summary>
+        private static void GovernorTest(Report r)
         {
-            if (!ProcessHelper.IsUserAdministrator()) { r.Line("needs an elevated prompt"); r.Verdict = "skipped (not admin)"; return; }
-            if (!IntelPowerLimits.Init()) { r.Line("init: " + IntelPowerLimits.Status); r.Verdict = "skipped (" + IntelPowerLimits.Status + ")"; return; }
-
-            r.Line($"status {IntelPowerLimits.Status}, MSR now {IntelPowerLimits.Get()}, overlay {PowerNative.GetOverlayIndex()}");
-            r.Line("phase,setpoint_pl1,msr_after,measured_pkg_w,max_cpu_c,core_limit_reasons");
-
-            var baseline = Measure();
-            r.Line($"stock,-,{IntelPowerLimits.Get()},{baseline.watts:0.0},{baseline.maxTemp},{baseline.limits}");
-            Cool();
-
-            var results = new List<(int target, double watts)>();
-            foreach (var (pl1, pl2) in new[] { (15, 30), (25, 60) })
+            var original = PowerPlan.Read();
+            r.Line($"plan caps before: {original}");
+            try
             {
-                IntelPowerLimits.Set(pl1, pl2);
-                var m = Measure();
-                r.Line($"set,{pl1},{IntelPowerLimits.Get()},{m.watts:0.0},{m.maxTemp},{m.limits}");
-                results.Add((pl1, m.watts));
+                r.Line("phase,package_w,cores_w,effective_mhz,max_cpu_c,ec_throttle");
+                PowerPlan.SetCap(0);
+                var stock = Measure(null);
+                r.Line($"no cap,{stock}");
                 Cool();
-            }
-            IntelPowerLimits.Restore();
 
-            bool binds = results.All(x => Math.Abs(x.watts - x.target) <= 2);
-            r.Verdict = binds ? "PASS: MSR 0x610 binds package power"
-                : $"FAIL: measured {string.Join(" / ", results.Select(x => $"{x.watts:0.0}W for {x.target}W"))}; 0x610 likely not governing (see ADR 0006)";
+                PowerPlan.SetCap(2000);
+                var capped = Measure(null);
+                r.Line($"cap 2000 MHz,{capped}");
+                Cool();
+                PowerPlan.SetCap(0);
+
+                var governed = Measure(15);
+                r.Line($"governor 15 W,{governed}");
+
+                bool binds = capped.Watts < stock.Watts * 0.8 && capped.Mhz < 2400;
+                bool holds = Math.Abs(governed.Watts - 15) <= 2;
+                r.Verdict = (binds ? "PASS: frequency cap binds" : "FAIL: frequency cap does not bind (see ADR 0016 fallback)") + "; " +
+                            (holds ? "PASS: governor holds 15 W" : $"FAIL: governor gave {governed.Watts:0.0} W for 15 W");
+            }
+            finally
+            {
+                if (original is not null) PowerPlan.Write(original);
+                r.Line($"plan caps after: {PowerPlan.Read()}");
+            }
         }
 
-        /// <summary>45 s all-core load; mean package power over the last 12 s.</summary>
-        private static (double watts, int? maxTemp, string limits) Measure()
+        private readonly record struct Measurement(double Watts, double Cores, double Mhz, int? MaxTemp, string Throttle)
+        {
+            public override string ToString() => $"{Watts:0.0},{Cores:0.0},{Mhz:0},{MaxTemp},{Throttle}";
+        }
+
+        /// <summary>45 s all-core load (optionally under a governor power target); means over the last 15 s.</summary>
+        private static Measurement Measure(int? powerTarget)
         {
             using var cts = new CancellationTokenSource();
             var workers = Enumerable.Range(0, Environment.ProcessorCount).Select(_ => Task.Factory.StartNew(() =>
@@ -172,22 +185,36 @@ namespace FwHelper.Helpers
                 return x;
             }, TaskCreationOptions.LongRunning)).ToArray();
 
-            var watts = new List<float>();
+            using var hw = new EcGovernorHardware();
+            using var governor = powerTarget is null ? null : new Governor(hw, () => (powerTarget, null), GovernorControl.CpuMaxMHz, log: s => Logger.WriteLine("hwtest governor: " + s));
+            governor?.Start();
+            using var meter = new EnergyMeter();
+            using var metrics = new SystemMetrics();
+
+            var watts = new List<double>(); var cores = new List<double>(); var mhz = new List<double>();
             int? maxTemp = null;
-            IntelPowerLimits.GetPackagePower(); // prime the energy counter
+            bool hard = false;
             for (int s = 0; s < 45; s++)
             {
                 Thread.Sleep(1000);
+                var p = meter.Read();
+                var sys = metrics.Sample();
                 int? t = FrameworkEc.GetCpuTemp();
                 if (t > maxTemp || maxTemp is null) maxTemp = t;
-                if (IntelPowerLimits.GetPackagePower() is float w && s >= 33) watts.Add(w);
+                if (FrameworkEc.GetApThrottleStatus() is (_, true)) hard = true;
+                if (s >= 30)
+                {
+                    if (p.PackageW is double w) watts.Add(w);
+                    if (p.CoresW is double c) cores.Add(c);
+                    if (sys.CpuMhz is double m) mhz.Add(m);
+                }
                 if (t >= 95) break;
             }
-            // Still under load: what is limiting the cores (EDP is Linux's only live reason; PL1 means our limit binds)
-            string limits = IntelPowerLimits.Read(PerfLimitReasons.MSR_CORE_PERF_LIMIT_REASONS) is ulong v ? PerfLimitReasons.Decode(v) : "n/a";
+            governor?.Stop();
             cts.Cancel();
             Task.WaitAll(workers);
-            return (watts.Count > 0 ? watts.Average() : double.NaN, maxTemp, limits);
+            static double Avg(List<double> l) => l.Count > 0 ? l.Average() : double.NaN;
+            return new Measurement(Avg(watts), Avg(cores), Avg(mhz), maxTemp, hard ? "EC PROCHOT seen" : "");
         }
 
         private static void Cool() => Thread.Sleep(15000);

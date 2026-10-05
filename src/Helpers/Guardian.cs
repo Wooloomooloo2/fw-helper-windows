@@ -52,6 +52,18 @@ namespace FwHelper.Helpers
                 Logger.WriteLine($"Guard: FW-Helper ({pid}) exited, fan returned to EC");
             else
                 Logger.WriteLine($"Guard: FW-Helper ({pid}) exited, couldn't return fan to EC");
+
+            // A newer instance replaced the one we watched: it owns the caps and the backstop now, don't undo its work
+            using var self = Process.GetCurrentProcess();
+            if (Process.GetProcessesByName(self.ProcessName).Any(p => p.Id != self.Id))
+            {
+                Logger.WriteLine("Guard: another FW-Helper is running, leaving power settings to it");
+                return;
+            }
+
+            // A clean exit already did these (then they're no-ops); after a hard kill they undo the governor and backstop (ADR 0016)
+            try { Features.GovernorControl.RestoreSavedCaps("guard"); } catch (Exception ex) { Logger.WriteLine("Guard: caps " + ex.Message); }
+            try { Features.EcBackstop.Restore(); } catch (Exception ex) { Logger.WriteLine("Guard: backstop " + ex.Message); }
         }
     }
 }

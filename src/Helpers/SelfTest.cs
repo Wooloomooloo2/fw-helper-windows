@@ -51,7 +51,9 @@ namespace FwHelper.Helpers
             Log($"power overlay: {PowerNative.GetOverlayIndex()}");
             string? screen = ScreenControl.FindLaptopScreen();
             Log($"screen: {screen} now {ScreenControl.GetRefreshRate(screen)} low {ScreenControl.GetLowRefreshRate(screen)} max {ScreenControl.GetMaxRefreshRate(screen)}");
-            Log($"admin: {ProcessHelper.IsUserAdministrator()} power limits init: {IntelPowerLimits.Init()} ({IntelPowerLimits.Status}) {IntelPowerLimits.Get()}");
+            using (var meter = new EnergyMeter()) { Thread.Sleep(1100); Log($"energy meter: {meter.Read()}"); }
+            Log($"cpu frequency caps (ac0,dc0,ac1,dc1 MHz): {PowerPlan.Read()}");
+            Log($"ec throttle (soft, hard): {FrameworkEc.GetApThrottleStatus()}");
 
             var curve = FanCurve.Default(Modes.Balanced);
             Log($"curve {curve}: 30->{curve.DutyAt(30)} 55->{curve.DutyAt(55)} 82->{curve.DutyAt(82)} 99->{curve.DutyAt(99)}");

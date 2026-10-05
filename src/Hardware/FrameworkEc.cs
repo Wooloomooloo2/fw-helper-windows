@@ -178,6 +178,35 @@ namespace FwHelper.Hardware
             return new ThermalConfig(C(0), C(4), C(8), C(24), C(28));
         }
 
+        private const ushort EC_CMD_THERMAL_SET_THRESHOLD = 0x0050;
+        private const ushort EC_CMD_GET_AP_THROTTLE_STATUS = 0x3E22;
+
+        /// <summary>The raw 32-byte ec_thermal_config of one sensor (Kelvin, 0 = unset), for read-modify-write.</summary>
+        public static byte[]? GetThermalConfigRaw(int sensor) =>
+            Ec.Command(EC_CMD_THERMAL_GET_THRESHOLD, 1, BitConverter.GetBytes((uint)sensor), 32, out var c) == EcStatus.Success ? c : null;
+
+        /// <summary>
+        /// Write a whole ec_thermal_config (v1: { u32 sensor_num; ec_thermal_config cfg; }). The EC replaces the entire struct,
+        /// fan ramp included, so always start from <see cref="GetThermalConfigRaw"/>. Lives in EC RAM: lost on EC reset.
+        /// </summary>
+        public static bool SetThermalConfigRaw(int sensor, byte[] config)
+        {
+            if (config.Length != 32) throw new ArgumentException("ec_thermal_config is 32 bytes", nameof(config));
+            var request = new byte[36];
+            BitConverter.TryWriteBytes(request.AsSpan(0), (uint)sensor);
+            config.CopyTo(request, 4);
+            var status = Ec.Command(EC_CMD_THERMAL_SET_THRESHOLD, 1, request);
+            Logger.WriteLine($"EC thermal config sensor {sensor}: {status}");
+            return status == EcStatus.Success;
+        }
+
+        /// <summary>EC-side CPU throttling right now (Framework 0x3E22): soft = host event, hard = PROCHOT#.</summary>
+        public static (bool soft, bool hard)? GetApThrottleStatus()
+        {
+            if (Ec.Command(EC_CMD_GET_AP_THROTTLE_STATUS, 0, ReadOnlySpan<byte>.Empty, 2, out var r) != EcStatus.Success) return null;
+            return (r[0] != 0, r[1] != 0);
+        }
+
         /// <summary>Hand all fans back to the EC thermal control loop.</summary>
         public static bool SetFanAuto()
         {

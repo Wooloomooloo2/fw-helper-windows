@@ -22,12 +22,10 @@ namespace FwHelper.UI
         private readonly CheckBox _customFan, _floorCheck;
         private readonly Label _floorLabel;
         private readonly FanCurveEditor _editor;
-        private readonly Label _liveLabel, _sensorList, _plStatus, _pl1Label, _pl2Label;
+        private readonly Label _liveLabel, _sensorList, _govStatus;
         private readonly RButton[] _overlayButtons = new RButton[3];
-        private readonly CheckBox _plCheck;
-        private readonly Slider _pl1, _pl2;
-        private readonly RButton _adminButton;
-        private readonly LinkLabel _pawnLink;
+        private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck;
+        private readonly Slider _powerSlider, _tempSlider;
         private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
 
         public FansForm()
@@ -140,48 +138,41 @@ namespace FwHelper.UI
             }
             y += 32 + 14;
 
-            // ---------- CPU power limits ----------
-            Header("CPU power limits (experimental)", y);
+            // ---------- Power & temperature limits (driverless governor, ADR 0016) ----------
+            Header("Power && temperature limits", y);
             y += 24;
-            _plCheck = new CheckBox { Text = "Override PL1 / PL2 for this mode", Location = new Point(M, y), AutoSize = true };
-            _plCheck.Click += (_, _) =>
-            {
-                Modes.SetPowerLimit(_editMode, _plCheck.Checked);
-                if (_plCheck.Checked && _editMode == ModeControl.CurrentMode) ModeControl.ApplyPowerLimits();
-                VisualisePowerLimits();
-            };
-            Controls.Add(_plCheck);
+            _powerCheck = new CheckBox { Location = new Point(M, y + 4), Size = new Size(150, 22) };
+            _powerCheck.Click += (_, _) => CommitLimits();
+            Controls.Add(_powerCheck);
+            _powerSlider = new Slider { Min = GovernorControl.MinPowerW, Max = GovernorControl.MaxPowerW, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
+            _powerSlider.ValueChanged += (_, _) => _powerCheck.Text = $"Power: {_powerSlider.Value} W";
+            _powerSlider.ValueCommitted += (_, _) => CommitLimits();
+            Controls.Add(_powerSlider);
+            _tip.SetToolTip(_powerCheck, "Sustained package power target for this profile. Holds it by lowering the CPU's maximum frequency.");
+            y += 30;
+
+            _tempCheck = new CheckBox { Location = new Point(M, y + 4), Size = new Size(150, 22) };
+            _tempCheck.Click += (_, _) => CommitLimits();
+            Controls.Add(_tempCheck);
+            _tempSlider = new Slider { Min = GovernorControl.MinTempC, Max = GovernorControl.MaxTempC, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
+            _tempSlider.ValueChanged += (_, _) => _tempCheck.Text = $"Temp cap: {_tempSlider.Value}°C";
+            _tempSlider.ValueCommitted += (_, _) => CommitLimits();
+            Controls.Add(_tempSlider);
+            _tip.SetToolTip(_tempCheck, "CPU package temperature cap for all profiles. Holds it by lowering the CPU's maximum frequency.");
+            y += 30;
+
+            _backstopCheck = new CheckBox { Text = $"EC hard throttle {EcBackstop.AboveCapC}°C above the cap", Location = new Point(M, y), AutoSize = true };
+            _backstopCheck.Click += (_, _) => CommitLimits();
+            _tip.SetToolTip(_backstopCheck, "Safety net in firmware: the EC forces the CPU to minimum clocks (PROCHOT) if the cap is overshot.");
+            Controls.Add(_backstopCheck);
             y += 26;
 
-            _pl1Label = Label("PL1", M, y + 4, 150);
-            _pl1 = new Slider { Min = PowerLimitControl.MinPL1, Max = PowerLimitControl.MaxPL1, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
-            Controls.Add(_pl1);
-            y += 30;
-            _pl2Label = Label("PL2", M, y + 4, 150);
-            _pl2 = new Slider { Min = PowerLimitControl.MinPL2, Max = PowerLimitControl.MaxPL2, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
-            Controls.Add(_pl2);
-            y += 30;
-
-            _pl1.ValueChanged += (_, _) => { if (_pl2.Value < _pl1.Value) _pl2.Value = _pl1.Value; _pl1Label.Text = $"Sustained (PL1): {_pl1.Value}W"; };
-            _pl2.ValueChanged += (_, _) => { if (_pl1.Value > _pl2.Value) _pl1.Value = _pl2.Value; _pl2Label.Text = $"Boost (PL2): {_pl2.Value}W"; };
-            EventHandler commit = (_, _) =>
-            {
-                Modes.SetPL(_editMode, _pl1.Value, _pl2.Value);
-                if (_editMode == ModeControl.CurrentMode) ModeControl.ApplyPowerLimits();
-                VisualisePowerLimits();
-            };
-            _pl1.ValueCommitted += commit;
-            _pl2.ValueCommitted += commit;
-
-            _plStatus = Label("", M, y + 6, Inner - 150);
-            _plStatus.Tag = "dim";
-            _adminButton = Button("Restart as admin", W - M - 140, y, 140, 28);
-            _adminButton.Secondary = true;
-            _adminButton.Click += (_, _) => ProcessHelper.RunAsAdmin();
-            _pawnLink = new LinkLabel { Text = "Get PawnIO", Location = new Point(W - M - 140, y + 6), Size = new Size(140, 20), TextAlign = ContentAlignment.TopRight, Visible = false };
-            _pawnLink.LinkClicked += (_, _) => ProcessHelper.OpenUrl("https://pawnio.eu/");
-            Controls.Add(_pawnLink);
-            y += 28 + 14;
+            _govStatus = Label("", M, y + 2, Inner);
+            _govStatus.Tag = "dim";
+            y += 22;
+            var note = Label("Limits the CPU cores only: GPU power isn't capped. No driver or admin needed.", M, y, Inner);
+            note.Tag = "dim";
+            y += 20 + 14;
 
             // ---------- Sensors ----------
             Header("EC sensors", y);
@@ -261,12 +252,17 @@ namespace FwHelper.UI
             _editor.Curve = Modes.GetCurve(mode);
             _editor.Enabled = _customFan.Checked;
 
-            _plCheck.Checked = Modes.IsPowerLimit(mode);
-            _pl1.SetValueSilently(Modes.GetPL1(mode));
-            _pl2.SetValueSilently(Modes.GetPL2(mode));
-            _pl1Label.Text = $"Sustained (PL1): {_pl1.Value}W";
-            _pl2Label.Text = $"Boost (PL2): {_pl2.Value}W";
-            _pl1.AccentColor = _pl2.AccentColor = Modes.ColorOf(mode);
+            int? power = GovernorControl.PowerTarget(mode);
+            _powerCheck.Checked = power is not null;
+            _powerSlider.SetValueSilently(power ?? Modes.Base(mode) switch { Modes.Silent => 15, Modes.Turbo => 35, _ => 25 });
+            _powerCheck.Text = $"Power: {_powerSlider.Value} W";
+
+            int? cap = GovernorControl.TempCap();
+            _tempCheck.Checked = cap is not null;
+            _tempSlider.SetValueSilently(cap ?? 85);
+            _tempCheck.Text = $"Temp cap: {_tempSlider.Value}°C";
+            _backstopCheck.Checked = GovernorControl.IsBackstopEnabled();
+            _powerSlider.AccentColor = _tempSlider.AccentColor = Modes.ColorOf(mode);
 
             VisualiseOverlay();
             VisualisePowerLimits();
@@ -351,20 +347,27 @@ namespace FwHelper.UI
             for (int i = 0; i < 3; i++) _overlayButtons[i].Activated = i == overlay;
         }
 
+        /// <summary>Save the limit controls (power target for the edited profile, global temperature cap) and apply.</summary>
+        private void CommitLimits()
+        {
+            GovernorControl.SetPowerTarget(_editMode, _powerCheck.Checked ? _powerSlider.Value : null);
+            GovernorControl.SetTempCap(_tempCheck.Checked ? _tempSlider.Value : null);
+            GovernorControl.SetBackstopEnabled(_backstopCheck.Checked);
+            // The temperature cap is global; the power target only matters if this is the active profile
+            ModeControl.ApplyPowerLimits();
+            VisualisePowerLimits();
+        }
+
         private void VisualisePowerLimits()
         {
-            bool admin = ProcessHelper.IsUserAdministrator();
-            if (admin) IntelPowerLimits.Init();
-            bool available = IntelPowerLimits.IsAvailable;
+            _powerSlider.Enabled = _powerCheck.Checked;
+            _tempSlider.Enabled = _tempCheck.Checked;
+            _backstopCheck.Enabled = _tempCheck.Checked;
 
-            _pl1.Enabled = _pl2.Enabled = _plCheck.Checked && available;
-            _adminButton.Visible = !admin;
-            _pawnLink.Visible = admin && !available && IntelPowerLimits.Status.Contains("PawnIO");
-
-            var current = IntelPowerLimits.Get();
-            _plStatus.Text = !admin ? "Needs admin + PawnIO driver"
-                : current is { } pl ? $"MSR now: PL1 {pl.pl1}W · PL2 {pl.pl2}W ({IntelPowerLimits.Status})"
-                : IntelPowerLimits.Status;
+            var g = GovernorControl.Instance;
+            string governor = g is null || g.Status == "off" ? "Governor off" : "Governor: " + g.Status;
+            string ec = EcBackstop.ActiveAtC is int at ? $" · EC throttles at {at}°C" : "";
+            _govStatus.Text = governor + ec;
         }
 
         private void RefreshLive()
@@ -376,13 +379,14 @@ namespace FwHelper.UI
             _editor.Invalidate();
 
             string duty = FanDutyText(FanControl.IsCustomActive, FanControl.LastDuty, FanControl.Status);
-            string power = IntelPowerLimits.GetPackagePower() is float w ? $" · CPU {w:0.0}W" : "";
+            string power = GovernorControl.Instance?.LastPower.PackageW is double w ? $" · {w:0.0}W" : "";
             _liveLabel.Text = $"{(cpu is null ? "-" : cpu + "°C")} · {(fans.Count > 0 ? fans[0] + " RPM" : "-")} · {duty}{power}";
 
             var loop = FanControl.Loop;
             _floorLabel.Text = $"EC now ~{loop.Floor.Floor(loop.LastModel)}% · {loop.Floor.LearnedBuckets}/{FirmwareFloor.Buckets} learned";
 
             _sensorList.Text = string.Join("   ", temps.Select(t => $"{t.Name.Split('@')[0]}: {(t.Celsius is null ? "n/a" : t.Celsius + "°C")}"));
+            VisualisePowerLimits();
         }
 
         /// <summary>"duty 40%", "duty 100% · battery guard", "EC: CPU ≥100°C", "EC auto".</summary>

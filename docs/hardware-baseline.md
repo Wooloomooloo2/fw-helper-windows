@@ -88,6 +88,32 @@ EC thermal config, read with `0x0051` on 2026-10-05 [W]:
 - The EC's own curve is **strongly hysteretic** [L]. When heating, the fan starts somewhere between 66.8 and 72.8 °C. When cooling, it holds duty 50–90/255
   until the temperature drops below about 45 °C. It tops out near 3100–3300 rpm, so giving control back to the EC gives *less* airflow than manual full speed.
 
+## Who sets the power limits [EC source, 2026-10-05]
+
+From Framework's EC firmware source (branch `fwk-sakura-20260429`; `zephyr/program/framework/sakura/src/cpu_power.c` and `src/cpu_power/intel_cpu_power_interface.c`):
+
+- **Writes:** the EC writes the limits itself, as PECI `WrPkgConfig` over eSPI-OOB (index 0x1A PL1, 0x1B PL2, 0x3B PsysPL2, 0x3C PL4).
+  The value is `(tau<<16)|(en<<15)|(W<<3)` with tau 28 s. It starts 10 s after ACPI is ready.
+- **Values:**
+  - On battery: PL1 35, PL2 60 (75 Wh pack), PL4 80 W.
+  - On AC with a battery: PL1 35, PL2 60, PL4 80, PsysPL2 = 0.95 × adapter W + 52/42/38 depending on the pack.
+- **When:** it re-sends whenever the computed value, an EPR event or an earlier failure changes, checked every second and on resume.
+- **No host command** changes the limits. The only override is `cpupower` on the EC's UART console.
+- **Thermal:** the common ChromeOS thermal task drives both throttling and the fan (`CONFIG_PLATFORM_EC_CUSTOM_FAN_CONTROL=n`).
+  - Sensor HIGH: hard throttle via PROCHOT# (`gpio_h_prochot_l`).
+  - WARN: soft throttle host event only.
+  - HALT: forced shutdown.
+  - `thermal_params[]` are kept in RAM and reset on an EC reset.
+- `0x3E22 GET_AP_THROTTLE_STATUS` → `{u8 soft, u8 hard}`.
+
+## Driverless Windows interfaces [W, 2026-10-05]
+
+- **Energy Meter (EMI):** `\Energy Meter(RAPL_Package0_PKG|PP0|PP1|DRAM)\Power` in mW, no admin.
+  Idle-ish reading: package 13.4, cores 9.6, GPU 0.2, DRAM 0.9 W.
+- **Frequency caps:** power-plan `PROCFREQMAX` (`75b0ae3f-…e100`) and `PROCFREQMAX1` (`…e101`), in MHz with 0 = no cap. Both are 0 by default,
+  and a write as a non-admin user succeeds. **Whether a cap binds under load is not yet verified.**
+- **Accounts:** the user is in *Performance Log Users*, so real-time ETW sessions (FPS capture) don't need admin.
+
 ## Power [L unless marked]
 
 - **The governing PL1 is the MMIO/MCHBAR copy.** The MSR package limit `0x610` reads 200 W and governs nothing on Linux.

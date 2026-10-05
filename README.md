@@ -15,8 +15,9 @@ and no admin rights needed for the core features.
 | Battery | Charge limit 50–100%, health, cycles | Framework EC `CHARGE_LIMIT_CONTROL` (0x3E03) |
 | Display | 60Hz / max Hz / Auto (max on AC, 60Hz on battery) | `ChangeDisplaySettingsEx` |
 | Lighting | Keyboard backlight, power button LED level | EC `PWM_SET_KEYBOARD_BACKLIGHT`, Framework `FP_LED_LEVEL_CONTROL` |
-| CPU power limits | Experimental per-mode PL1/PL2 override | `MSR_PKG_POWER_LIMIT` via [PawnIO](https://pawnio.eu) (admin + PawnIO required) |
-| Monitoring | Live charts: CPU/GPU load, CPU clock, power, temperatures, fan, memory; CSV session recording | Performance counters (PDH), EC, battery; package W via PawnIO |
+| Power & temperature limits | Per-profile package power target and a CPU temperature cap, plus an optional EC hard-throttle backstop. No driver, no admin | Windows Energy Meter + power-plan max CPU frequency; EC `THERMAL_SET_THRESHOLD` |
+| Overlay | Always-on-top: FPS, package °C, CPU/GPU load and watts, power vs limit, RAM, GPU memory, battery | ETW present events (like PresentMon), Energy Meter, EC |
+| Monitoring | Live charts: CPU/GPU load, CPU clock and cap, package/CPU/GPU/DRAM watts, temperatures, fan, memory, FPS, battery; CSV session recording | Performance counters (PDH), Windows Energy Meter, ETW, EC |
 | Startup | Run at logon via Task Scheduler | |
 
 ### Fan safety
@@ -73,4 +74,6 @@ Settings live in `%AppData%\FwHelper\config.json` and the log is in `%AppData%\F
 * [External references](docs/references.md)
 
 ## License
-GPL-3.0. Portions (UI controls, PawnIO wrapper, display helpers) are adapted from G-Helper, which is GPL-3.0.
+GPL-3.0. Portions (UI controls, display helpers) are adapted from G-Helper, which is GPL-3.0.
+
+Nothing needs admin rights or a third-party driver. Undervolting is not supported: Intel locks it on this CPU.

@@ -16,6 +16,11 @@ namespace FwHelper.Features
         private static readonly Queue<TelemetrySample> _history = new();
         private static System.Threading.Timer? _timer;
         private static SystemMetrics? _metrics;
+        private static EnergyMeter? _energy;
+        private static PresentMonitor? _presents;
+
+        /// <summary>Why FPS isn't available (no ETW rights), for the UI; null when it works or isn't running.</summary>
+        public static string? FpsError => _presents?.Error;
         private static int _users;
         private static SessionRecorder? _recorder;
 
@@ -41,6 +46,10 @@ namespace FwHelper.Features
                 if (_users++ == 0)
                 {
                     _metrics ??= new SystemMetrics();
+                    _energy ??= new EnergyMeter();
+                    // The ETW session only runs while something shows or records telemetry
+                    _presents = new PresentMonitor();
+                    _presents.Start();
                     _timer = new System.Threading.Timer(_ => Tick(), null, 0, IntervalMs);
                 }
             }
@@ -54,6 +63,8 @@ namespace FwHelper.Features
                 if (--_users > 0) return;
                 _timer?.Dispose();
                 _timer = null;
+                _presents?.Dispose();
+                _presents = null;
             }
         }
 
@@ -118,11 +129,16 @@ namespace FwHelper.Features
             SystemSnapshot sys;
             lock (_lock) sys = _metrics!.Sample();
 
+            PowerReading power;
+            lock (_lock) power = _energy!.Read();
+            var fps = _presents?.Current();
+
             var temps = FrameworkEc.GetTemperatures();
             int? Temp(string prefix) => temps.FirstOrDefault(t => t.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Celsius;
             var batt = FrameworkEc.GetBattery();
             bool onAC = PowerNative.IsOnAC();
             int mode = ModeControl.CurrentMode;
+            var governor = GovernorControl.Instance;
 
             return new TelemetrySample(
                 DateTime.Now, Modes.Name(mode), onAC,
@@ -134,32 +150,24 @@ namespace FwHelper.Features
                 batt is { Present: true } ? batt.Percent : null,
                 // System draw is only measurable from the battery while discharging
                 batt is { Present: true, Discharging: true } ? -batt.Watts : null,
-                Watts(_package, IntelPowerLimits.MSR_PKG_ENERGY_STATUS),
-                Modes.IsPowerLimit(mode) && IntelPowerLimits.IsAvailable
-                    ? Math.Clamp(Modes.GetPL1(mode), PowerLimitControl.MinPL1, PowerLimitControl.MaxPL1) : null,
-                Watts(_cores, IntelPowerLimits.MSR_PP0_ENERGY_STATUS),
-                Watts(_uncore, IntelPowerLimits.MSR_PP1_ENERGY_STATUS),
-                Throttle());
+                power.PackageW,
+                GovernorControl.PowerTarget(mode),
+                power.CoresW,
+                power.GpuW,
+                Throttle(governor),
+                power.DramW,
+                governor is { CapMHz: > 0 } g ? g.CapMHz : null,
+                fps?.fps,
+                fps?.app,
+                batt is { Present: true, Discharging: true, RateMa: > 0 } b ? (int)(b.RemainingMah * 60L / b.RateMa) : null);
         }
 
-        // Our own meters: sharing one with the Fans + Power window would split the measuring interval
-        private static readonly RaplEnergy _package = new(), _cores = new(), _uncore = new();
-
-        private static double? Watts(RaplEnergy meter, uint msr) =>
-            IntelPowerLimits.ReadEnergy(msr) is uint raw ? meter.Next(raw, IntelPowerLimits.EnergyUnit, Environment.TickCount64) : null;
-
-        /// <summary>"core: EDP · gpu: PL1" style summary of what is limiting clocks right now; null without PawnIO, "" if nothing.</summary>
-        private static string? Throttle()
+        /// <summary>What is holding the CPU back right now: our governor and/or the EC (soft event, hard PROCHOT). "" if nothing.</summary>
+        private static string Throttle(Governor? governor)
         {
-            if (IntelPowerLimits.Read(PerfLimitReasons.MSR_CORE_PERF_LIMIT_REASONS) is not ulong core) return null;
             var parts = new List<string>();
-            void Add(string domain, ulong? value)
-            {
-                if (value is ulong v && PerfLimitReasons.Decode(v) is { Length: > 0 } s) parts.Add($"{domain}: {s}");
-            }
-            Add("core", core);
-            Add("gpu", IntelPowerLimits.Read(PerfLimitReasons.MSR_GRAPHICS_PERF_LIMIT_REASONS));
-            Add("ring", IntelPowerLimits.Read(PerfLimitReasons.MSR_RING_PERF_LIMIT_REASONS));
+            if (governor is { CapMHz: > 0 } g) parts.Add("governor: " + g.Status);
+            if (FrameworkEc.GetApThrottleStatus() is var (soft, hard) && (soft || hard)) parts.Add(hard ? "EC: PROCHOT" : "EC: soft");
             return string.Join(" · ", parts);
         }
 

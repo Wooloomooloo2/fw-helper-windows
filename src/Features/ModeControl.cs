@@ -56,6 +56,6 @@ namespace FwHelper.Features
                 FanControl.Stop();
         }
 
-        public static void ApplyPowerLimits() => PowerLimitControl.Apply(CurrentMode);
+        public static void ApplyPowerLimits() => GovernorControl.Apply();
     }
 }

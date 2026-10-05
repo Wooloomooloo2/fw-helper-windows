@@ -18,27 +18,6 @@ namespace FwHelper.Helpers
             }
         }
 
-        public static void RunAsAdmin(string? args = null)
-        {
-            if (IsUserAdministrator()) return;
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = Application.ExecutablePath,
-                    Arguments = args ?? "",
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    WorkingDirectory = Environment.CurrentDirectory,
-                });
-                Program.Exit();
-            }
-            catch (Exception ex)
-            {
-                Logger.WriteLine("Elevation cancelled: " + ex.Message);
-            }
-        }
-
         /// <summary>Close any other running instance (new instance wins, as in G-Helper).</summary>
         /// <returns>Whether another instance was running.</returns>
         public static bool CloseOtherInstances()
