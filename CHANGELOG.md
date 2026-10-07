@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.2.0 (unreleased, waiting on the [hardware test plan](docs/hardware-test-plan.md))
+## 0.2.0 (2026-10-07)
+
+**Verified on the target laptop:**
+- EC access, sensors, charge limit, modes and refresh rate;
+- the fan guard after a forced kill, and the CLI;
+- Energy Meter power readings, FPS capture without admin, and the idle cost.
+
+**Not yet verified on hardware:**
+- custom fan curves under sustained load, and the fan watchdog;
+- whether the CPU frequency cap binds, which the power target and temperature cap depend on;
+- the EC temperature backstop.
+
+The custom fan curve, power target and temperature cap are all **off by default**. See the [hardware test plan](docs/hardware-test-plan.md).
+
+### Fixes
+- FPS capture now filters events in the kernel, so the overlay no longer adds 1–1.5 W at idle.
+- The release is a single exe again: TraceEvent's unused native support files are left out.
 
 ### Fan safety (ADR 0009)
 - The fan curve runs at 1 Hz, with 2 °C hysteresis and a gentler ramp-down. It never asks for a duty in the 1–11 % band, where the fan stalls.

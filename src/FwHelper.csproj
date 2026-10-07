@@ -24,5 +24,14 @@
     <PackageReference Include="TaskScheduler" Version="2.12.2" />
   </ItemGroup>
 
+  <!-- TraceEvent copies kernel-session and symbol-lookup support files (amd64\KernelTraceControl.dll, msdia140.dll,
+       TraceReloggerLib.dll, Dia2Lib.dll). FPS capture uses a user-mode session only and was verified without them
+       (ADR 0017), so keep the publish a single exe. -->
+  <Target Name="DropTraceEventSupportFiles" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <None Remove="@(None)" Condition="$([System.String]::Copy('%(None.FullPath)').ToLowerInvariant().Contains('microsoft.diagnostics.tracing.traceevent'))" />
+    </ItemGroup>
+  </Target>
+
 
 </Project>

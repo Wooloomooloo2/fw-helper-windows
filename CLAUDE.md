@@ -79,7 +79,7 @@ test on hardware. Add each new check to `docs/hardware-test-plan.md`. Built toda
 - the proposed service split (ADR 0014);
 - the CLI over a per-user named pipe, and the overlay window (ADR 0015).
 
-**No tag has been pushed. Tag `v0.2.0` only after the hardware test plan has passed.**
+**v0.2.0 released 2026-10-07** at the user's request, before the full hardware test plan. The changelog lists what is unverified. Fixes found by the test plan go into 0.2.x.
 
 **Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts
 ([W] tags in hardware-baseline.md), settle open questions 1 and 2 and ADR 0014, then tag. Remaining gaps are listed in
