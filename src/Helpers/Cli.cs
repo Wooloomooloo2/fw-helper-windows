@@ -6,9 +6,9 @@ using System.Text;
 namespace FwHelper.Helpers
 {
     /// <summary>
-    /// "FwHelper.exe --status | --profiles | --mode X | --charge-limit N | --fan-floor on|off" (ADR 0015).
+    /// "FwHelper.exe --status | --battery | --profiles | --mode X | --charge-limit N | --fan-floor on|off" (ADR 0015).
     /// The exe is a GUI app, so it attaches to the parent console to print. Changes go to the running tray app over a pipe;
-    /// --status and --profiles also work without it.
+    /// --status, --battery and --profiles also work without it.
     /// </summary>
     public static class Cli
     {
@@ -41,6 +41,10 @@ namespace FwHelper.Helpers
                 case "status":
                     if (!FrameworkEc.Connect()) { Console.WriteLine("error: can't reach the Framework EC driver"); return 1; }
                     Console.WriteLine(CommandServer.Status(running: false));
+                    return 0;
+                case "battery":
+                    if (!FrameworkEc.Connect()) { Console.WriteLine("error: can't reach the Framework EC driver"); return 1; }
+                    Console.WriteLine(CommandServer.Battery(running: false));
                     return 0;
                 case "profiles":
                     Console.WriteLine(CommandServer.Profiles());

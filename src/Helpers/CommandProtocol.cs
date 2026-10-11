@@ -9,11 +9,12 @@ namespace FwHelper.Helpers
     /// </summary>
     public static class CommandProtocol
     {
-        public static readonly string[] Verbs = { "status", "profiles", "mode", "charge-limit", "fan-floor", "help" };
+        public static readonly string[] Verbs = { "status", "battery", "profiles", "mode", "charge-limit", "fan-floor", "help" };
 
         public const string Usage =
             "FW-Helper command line\n" +
             "  FwHelper.exe --status                 current mode, temperatures, fan, battery\n" +
+            "  FwHelper.exe --battery                time on battery, average draw, last charge, history\n" +
             "  FwHelper.exe --profiles               list profiles (id, name)\n" +
             "  FwHelper.exe --mode <name|id>         switch profile (needs FW-Helper running)\n" +
             "  FwHelper.exe --charge-limit <50-100>  set the battery charge limit (needs FW-Helper running)\n" +

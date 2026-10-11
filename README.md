@@ -17,6 +17,7 @@ and no admin rights needed for the core features.
 | Lighting | Keyboard backlight, power button LED level | EC `PWM_SET_KEYBOARD_BACKLIGHT`, Framework `FP_LED_LEVEL_CONTROL` |
 | Power & temperature limits | Per-profile package power target and a CPU temperature cap, plus an optional EC hard-throttle backstop. No driver, no admin | Windows Energy Meter + power-plan max CPU frequency; EC `THERMAL_SET_THRESHOLD` |
 | Overlay | Always-on-top: FPS, package °C, CPU/GPU load and watts, power vs limit, RAM, GPU memory, battery | ETW present events (like PresentMon), Energy Meter, EC |
+| Battery monitor | Time on battery, average draw (screen on and off), time left, last charge, health and cycles; a 24 h / 7 day chart; history kept as 30 days, then months, then years. Event-driven (no polling) on a low-priority efficiency-mode thread | Windows power notifications, EC |
 | Monitoring | Live charts: CPU/GPU load, CPU clock and cap, package/CPU/GPU/DRAM watts, temperatures, fan, memory, FPS, battery; CSV session recording | Performance counters (PDH), Windows Energy Meter, ETW, EC |
 | Startup | Run at logon via Task Scheduler | |
 
@@ -50,13 +51,14 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 
 ```powershell
 FwHelper.exe --status | Out-String        # mode, temperatures, fan (and who owns it), battery
+FwHelper.exe --battery | Out-String       # time on battery, average draw, last charge, recent days and months
 FwHelper.exe --profiles | Out-String
 FwHelper.exe --mode Turbo                 # by name or id; also your own profiles
 FwHelper.exe --charge-limit 80
 FwHelper.exe --fan-floor on               # never quieter than the EC's own fan control
 ```
 
-Changes go to the running FW-Helper over a named pipe that only your own account can open. `--status` also works when it isn't running.
+Changes go to the running FW-Helper over a named pipe that only your own account can open. `--status` and `--battery` also work when it isn't running.
 
 `FwHelper.exe --selftest` writes a hardware report to `%AppData%\FwHelper\selftest.txt`.
 Settings live in `%AppData%\FwHelper\config.json` and the log is in `%AppData%\FwHelper\log.txt`.

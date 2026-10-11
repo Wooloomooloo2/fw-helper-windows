@@ -123,11 +123,15 @@ namespace FwHelper.UI
             };
             Controls.Add(_startupCheck);
 
-            var monitor = MakeButton("Monitor", W - M - 2 * 90 - 8, y, 90, 30);
+            var battery = MakeButton("Battery", W - M - 3 * 80 - 2 * 8, y, 80, 30);
+            battery.Secondary = true;
+            battery.Click += (_, _) => Program.ShowBattery();
+
+            var monitor = MakeButton("Monitor", W - M - 2 * 80 - 8, y, 80, 30);
             monitor.Secondary = true;
             monitor.Click += (_, _) => Program.ShowMonitor();
 
-            var quit = MakeButton("Quit", W - M - 90, y, 90, 30);
+            var quit = MakeButton("Quit", W - M - 80, y, 80, 30);
             quit.Secondary = true;
             quit.Click += (_, _) => Program.Exit();
             y += 30 + 8;

@@ -29,3 +29,4 @@ When a Windows ADR refers to a Linux ADR, it says "Linux ADR NNNN". The two seri
 | [0015](0015-cli-over-named-pipe-and-overlay.md) | Command line over a per-user named pipe; overlay window | Accepted |
 | [0016](0016-driverless-power-and-temperature-control.md) | Driverless power/temperature governor + EC backstop; PawnIO removed; no undervolting | Accepted |
 | [0017](0017-fps-capture-and-game-overlay.md) | FPS from present events (ETW, no admin); G-Helper-style overlay | Accepted |
+| [0018](0018-battery-log-event-driven.md) | Battery log: event-driven (power notifications, EcoQoS thread), 30 days → months → years | Accepted |

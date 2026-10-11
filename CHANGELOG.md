@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Battery monitor (ADR 0018)
+- A **Battery** window, one click from the main window or the tray menu, refreshes every 5 s while open. It shows:
+  - time on battery, energy used, average draw with the screen on and off, and an estimate of the time left;
+  - what the battery was last charged to;
+  - health and cycles.
+- It has a charge chart for 24 h or 7 days, with on-AC and screen-off stretches shaded.
+- The history table is kept as 30 days in detail, then monthly totals for a year, then yearly totals.
+- `FwHelper.exe --battery` prints the same summary, even when FW-Helper isn't running. The tray tooltip shows the time on battery.
+- **It's built to cost nothing measurable.** There's no polling: Windows reports each 1 % step, each plug or unplug, and each
+  screen on/off. One low-priority efficiency-mode (EcoQoS) thread then logs one line. While on battery with the screen on, it also
+  logs every 10 minutes.
+- **Standby split:** screen-off time is split into *awake* (the screen is off but Windows hasn't slept yet, about 1–1.7 W here)
+  and *asleep* (about 0.33 W), with deep-idle %. The data comes from Windows' own record of each standby session, including the
+  ones from before the update.
+- **Sleep after the screen turns off** (on battery) can be set in the Battery window: 5 min to 2 h, or never. It is Windows'
+  own setting, so Windows Settings shows the same value. Closing the lid always sleeps at once.
+- Not yet verified on hardware: see the hardware test plan.
+
 ## 0.2.0 (2026-10-07)
 
 **Verified on the target laptop:**

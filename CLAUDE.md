@@ -30,10 +30,11 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 | `README.md` | User-facing |
 | `CHANGELOG.md` | Per-version changes; release notes link here |
 
-## Current state (2026-10-05)
+## Current state (2026-10-10)
 
-Version **0.2.0**, which is unreleased (see `CHANGELOG.md`). Builds with 0 warnings, 155 unit tests pass, and CI is green. `publish/` is gitignored.
-The user is running **0.2.0** from `publish\` (republished 2026-10-05 13:19, with the pipe fixes). Before relaunching it, ask, or at
+Version **0.2.0** was released 2026-10-07 (tag `v0.2.0`). Since then `main` has the battery monitor (ADR 0018, "Unreleased" in
+`CHANGELOG.md`). Builds with 0 warnings and 175 unit tests pass. `publish/` is gitignored.
+The user is running a build of `main` from `publish\` (2026-10-10 10:43) with the first battery monitor UI. The 2026-10-11 rework and the ASCII CLI fix are not published yet. Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
 | Feature | Status | Evidence |
@@ -60,8 +61,9 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | Autostart (Task Scheduler) | 🟡 not confirmed | |
 | Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
+| **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
 | CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
-| Unit tests | ✅ 155: fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 175: battery history and standby, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -80,6 +82,12 @@ test on hardware. Add each new check to `docs/hardware-test-plan.md`. Built toda
 - the CLI over a per-user named pipe, and the overlay window (ADR 0015).
 
 **v0.2.0 released 2026-10-07** at the user's request, before the full hardware test plan. The changelog lists what is unverified. Fixes found by the test plan go into 0.2.x.
+
+2026-10-10: the battery monitor was built (ADR 0018). The user asked for history kept as 30 days → 12 months → years, and for
+**absolutely minimal CPU use**: no polling, a low-power core. Its hardware checks are in the test plan ("Battery log: …").
+2026-10-11: the Battery became its own window (main window and tray), with a standby awake/asleep split taken from Windows'
+records and a "Sleep after" setting (ADR 0018 amendment). The battery's own cycle count is stuck at 1 (hardware-baseline.md).
+The user asked about importing `powercfg /batteryreport` history and hasn't answered yet.
 
 **Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts
 ([W] tags in hardware-baseline.md), settle open questions 1 and 2 and ADR 0014, then tag. Remaining gaps are listed in
@@ -101,7 +109,7 @@ src/
     Pdh.cs                performance counter (PDH) P/Invoke, English paths, wildcard arrays
     SystemMetrics.cs      CPU utility/effective MHz, GPU busiest engine + shared mem, RAM
     EnergyMeter.cs        RAPL watts from Windows Energy Meter counters (no driver)
-    PowerPlan.cs          CPU frequency caps in the active power plan (PROCFREQMAX/1, AC+DC)
+    PowerPlan.cs          CPU frequency caps in the active power plan (PROCFREQMAX/1, AC+DC); "Sleep after" on battery (STANDBYIDLE DC)
     PresentMonitor.cs     real-time ETW session on present events → FpsCounter
   Features/
     Modes.cs              profiles: built-ins 0–2, user ids 3+; per-profile config accessors; ProfileList (pure helpers)
@@ -121,10 +129,13 @@ src/
     SessionRecorder.cs    sessions\session-*.csv writer/loader, prune to 20, 12 h auto-stop
     PowerNative.cs        Windows power overlay (powrprof)
     BatteryControl.cs     charge limit persistence/reapply
+    BatteryHistory.cs     pure battery maths: event intervals, day/month/year totals, roll-up, current session (ADR 0018)
+    BatteryLog.cs         event-driven battery log: power notifications → EcoQoS thread → battery\events.csv + history.json;
+                          standby sessions from Kernel-Power 507 (catch-up + EventLogWatcher) → battery\standby.csv
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
-  Helpers/                AppConfig (JSON), Logger, Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest),
+  Helpers/                AppConfig (JSON), Logger, EcoQos (per-thread efficiency mode), Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest),
                           Cli + CommandProtocol (pure) + CommandServer (named pipe, runs commands on the UI thread)
-  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
+  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, BatteryForm + BatteryPanel, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
                           RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit, no hardware: FakeFan (fake EC) drives FanLoop; never touches AppConfig
@@ -192,6 +203,12 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - Each consumer of Energy Meter or PDH keeps its own query (the governor, telemetry and hwtest each have one).
 - The FPS ETW session runs only while telemetry is in use. A crashed run's session (`FwHelper-Presents`) is taken over by name.
 - **Always filter ETW providers by event id** (`Only(...)` in PresentMonitor). DxgKrnl unfiltered is about 4,900 events/s at idle: +1–1.5 W.
+- **Modern Standby, not S3.** `PowerModes.Suspend/Resume` never fire on this laptop. For what happened in standby, use Windows' own
+  record (Kernel-Power 507 in the System log, see ADR 0018): the process is frozen during standby, so it can't measure it. The fan suspend/resume code in `Program.OnPowerModeChanged` therefore never runs either.
+- **The battery log must stay event-driven.** No timers except the 10-min heartbeat on battery with the screen on. Its thread is
+  EcoQoS + lowest priority. Don't route it through `Telemetry` (1 Hz).
+- `battery\events.csv` lines are append-only, and each line's state covers the interval up to the next one. Never write lines out of order.
+  `Stop`/`Start` mark the gaps where the app wasn't running.
 - **Idle cost matters, because the user watches CPU watts.** Measure FW-Helper's CPU (`TotalProcessorTime` over 10–20 s) after adding anything that runs periodically.
   Target: under 0.5 % of one core at idle, with the overlay open or closed.
 

@@ -63,6 +63,9 @@ namespace FwHelper.Helpers
                 case "status":
                     return Status(running: true);
 
+                case "battery":
+                    return Battery();
+
                 case "profiles":
                     return Profiles();
 
@@ -86,6 +89,13 @@ namespace FwHelper.Helpers
                 default:
                     return "error: unknown command";
             }
+        }
+
+        /// <summary>Also used by the CLI directly when FW-Helper isn't running (then it reads the log files).</summary>
+        public static string Battery(bool running = true)
+        {
+            var (events, sessions, archive) = running ? (BatteryLog.Events().ToList(), BatteryLog.Sessions().ToList(), BatteryLog.Archive()) : BatteryLog.Load();
+            return BatteryLog.Report(events, archive, BatteryLog.Read(), FrameworkEc.GetBattery(), DateTime.UtcNow, sessions);
         }
 
         public static string Profiles() =>

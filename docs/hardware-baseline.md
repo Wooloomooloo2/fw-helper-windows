@@ -19,6 +19,9 @@ When you measure something on Windows that confirms or contradicts an [L] fact, 
 | GPU | Intel Arc B390 (integrated). rp0 2500 / rpe 900 / rpn 100 MHz [L] |
 | EC | `sakura-3.0.2-cf48815` (Nuvoton npcx9m3f) [W][L] |
 | Windows driver | Framework `CrosEcBus` → `\\.\GLOBALROOT\Device\CrosEC`, opens without admin rights [W] |
+| Sleep | **Modern Standby only** (S0 Low Power Idle, plus hibernate). There are no S3 suspend/resume events: the log has never had a `Suspend` entry [W] 2026-10-10 |
+| Modern Standby phases | Kernel-Power 507 (System log, no admin) records each session: the **screen-off phase** (awake, **1.0–1.7 W**) and the **sleep phase** (**~0.33 W**, ~99 % DRIPS). On battery the screen-off phase lasts until "Sleep after" (DC `STANDBYIDLE`, 3600 s) runs out, timed from the screen turning off; closing the lid sleeps at once. "Austerity" (reason 55) is an exit reason. `STANDBYIDLE` is writable without admin [W] 2026-10-11 |
+| Power notifications | `GUID_BATTERY_PERCENTAGE_REMAINING`, `GUID_ACDC_POWER_SOURCE` and `GUID_CONSOLE_DISPLAY_STATE` all register with `DEVICE_NOTIFY_CALLBACK` without admin, and each delivers its current value on registration. `SetThreadInformation(ThreadPowerThrottling)` (EcoQoS) works [W] 2026-10-10 |
 
 ## CrosEC driver interface [W]
 
@@ -136,6 +139,10 @@ From Framework's EC firmware source (branch `fwk-sakura-20260429`; `zephyr/progr
 ## Battery
 
 - [W] ATC `FRANEDA` Li-ion. Design 4640 mAh at 15.64 V, full 4685 mAh, 1 cycle, health 101 % (2026-10-03).
+- [W] **The battery's cycle count doesn't advance.** EC memmap `0x5C`, WMI `BatteryCycleCount` and `powercfg /batteryreport` all
+  read **1** (2026-10-10). Yet the report's daily history shows 330 Wh drained between 2 and 9 Oct, which is about 4.5 × the
+  72.6 Wh design capacity. The user has run the laptop mainly on battery for about 6 weeks. The reason is unknown. Don't treat
+  the gauge's cycle count as wear: FW-Helper shows its own measured count (energy drawn ÷ design energy, ADR 0018).
 - [W] The charge limit reads back correctly. 85 % has held across app restarts.
 - [L] Charging **stops** at the limit (80 % → current 0). The limit **resets to 100 % on reboot** and survives suspend.
   The UEFI limit setting uses the same mechanism.

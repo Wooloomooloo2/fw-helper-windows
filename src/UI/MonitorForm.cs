@@ -17,7 +17,7 @@ namespace FwHelper.UI
         private readonly LineChart _load, _clock, _power, _temp, _fan, _memory, _fps, _battery;
         private readonly LineChart[] _charts;
         private readonly Label _status;
-        private readonly RButton _record, _open, _live;
+        private readonly RButton _record, _open, _live, _view;
         private IDisposable? _telemetry;
         private List<TelemetrySample>? _session;
         private string? _sessionName;
@@ -33,8 +33,10 @@ namespace FwHelper.UI
             Icon = TrayIcons.ForMode(ModeControl.CurrentMode);
 
             int y = M;
-            _status = new Label { Location = new Point(M, y + 7), Size = new Size(W - 2 * M - 3 * 118, 20), AutoEllipsis = true, Tag = "dim" };
+            _status = new Label { Location = new Point(M, y + 7), Size = new Size(W - 2 * M - 4 * 118, 20), AutoEllipsis = true, Tag = "dim" };
             Controls.Add(_status);
+            _view = Button("Battery", W - M - 4 * 118 + 8, y, 110);
+            _view.Click += (_, _) => Program.ShowBattery();
             _live = Button("Live", W - M - 3 * 118 + 8, y, 110);
             _open = Button("Open session…", W - M - 2 * 118 + 8, y, 110);
             _record = Button("● Record", W - M - 118 + 8, y, 110);

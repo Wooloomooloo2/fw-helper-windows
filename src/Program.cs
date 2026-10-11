@@ -89,6 +89,7 @@ namespace FwHelper
             FanControl.Init();
             GovernorControl.Init(); // undo frequency caps / EC thresholds a crashed run left behind
             ApplyAll();
+            BatteryLog.Start();
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
             SystemEvents.SessionEnding += (_, _) => SafeShutdown();
@@ -167,6 +168,7 @@ namespace FwHelper
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open", null, (_, _) => SettingsForm.ShowAtTray());
             menu.Items.Add("Monitor", null, (_, _) => ShowMonitor());
+            menu.Items.Add("Battery", null, (_, _) => ShowBattery());
             var overlayItem = new ToolStripMenuItem("Overlay", null, (_, _) => ToggleOverlay());
             menu.Items.Add(overlayItem);
             menu.Opening += (_, _) => overlayItem.Checked = _overlay is { IsDisposed: false };
@@ -211,10 +213,25 @@ namespace FwHelper
             _monitor.Activate();
         }
 
+        private static BatteryForm? _battery;
+
+        public static void ShowBattery()
+        {
+            if (_battery is null || _battery.IsDisposed)
+            {
+                _battery = new BatteryForm();
+                _battery.FormClosed += (_, _) => _battery = null;
+            }
+            _battery.Show();
+            if (_battery.WindowState == FormWindowState.Minimized) _battery.WindowState = FormWindowState.Normal;
+            _battery.Activate();
+        }
+
         public static void UpdateTrayText(int? cpu, int fanRpm, BatteryInfo? batt)
         {
             string text = $"FW-Helper · {Modes.Name(ModeControl.CurrentMode)}\nCPU {(cpu is null ? "-" : cpu + "°C")} · Fan {fanRpm} RPM";
             if (batt is { Present: true }) text += $"\nBattery {batt.Percent}% {(batt.Discharging ? $"{batt.Watts:0.0}W" : "")}";
+            if (BatteryLog.TrayLine() is string line) text += "\n" + line;
             TrayIcon.Text = text.Length > 127 ? text[..127] : text;
         }
 
@@ -224,6 +241,7 @@ namespace FwHelper
             try { FanControl.Stop(); } catch { }
             try { GovernorControl.Shutdown(); } catch { }
             try { Telemetry.StopRecording(); } catch { }
+            try { BatteryLog.Stop(); } catch { }
         }
 
         public static void Exit()

@@ -33,6 +33,7 @@ This compares Windows `v0.1.0` (2026-10-03) with Linux [fw-helper](https://githu
 | Monitoring: GPU load, achieved vs requested clock | ✅ | 🟡 load (busiest engine) and shared memory; no clock | No Windows counter for the Intel achieved clock |
 | Monitoring: memory / swap | ✅ | ✅ RAM (no swap) | |
 | Monitoring: battery W, time left | ✅ | ✅ watts, % and health | |
+| Battery log: time on battery, average draw, last charge; 30 days → months → years | ? | 🟡 built, unit-tested (ADR 0018) | Event-driven on Windows; not checked whether Linux has an equivalent |
 | Live charts | ✅ 6 cards, 300-sample window | ✅ 6 cards, 300 samples, reopens saved sessions | Rendered offscreen; not yet seen live |
 | Session recording (CSV) | ✅ | ✅ 21 columns, 12 h auto-stop, keeps 20 | |
 | Overlay / in-game HUD | ✅ overlay window + MangoHud | 🟡 overlay with **FPS** (ETW, no admin, verified), temps, load, watts, % used; not over exclusive full-screen | ADR 0017 |
