@@ -32,9 +32,8 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-10)
 
-Version **0.2.0** was released 2026-10-07 (tag `v0.2.0`). Since then `main` has the battery monitor (ADR 0018, "Unreleased" in
-`CHANGELOG.md`). Builds with 0 warnings and 175 unit tests pass. `publish/` is gitignored.
-The user is running a build of `main` from `publish\` (2026-10-10 10:43) with the first battery monitor UI. The 2026-10-11 rework and the ASCII CLI fix are not published yet. Before relaunching it, ask, or at
+Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 175 unit tests pass. `publish/` is gitignored.
+The user is running the battery monitor build from `publish\` (2026-10-11 09:53; it is the 0.3.0 code but reports 0.2.0). Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
 | Feature | Status | Evidence |

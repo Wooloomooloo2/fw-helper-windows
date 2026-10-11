@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-11)
+
+**Verified on the target laptop:** the battery log (percent steps, plug and unplug, screen on/off), the import of Windows' standby
+records, and `--battery`. **Not yet verified:** changing "Sleep after" from the Battery window and the standby split it produces,
+and the idle-cost comparison. Everything listed as unverified in 0.2.0 still is. See the [hardware test plan](docs/hardware-test-plan.md).
 
 ### Battery monitor (ADR 0018)
 - A **Battery** window, one click from the main window or the tray menu, refreshes every 5 s while open. It shows:
