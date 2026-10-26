@@ -36,13 +36,19 @@ namespace FwHelper.UI
             Invalidate();
         }
 
-        private float S(float v) => v * DeviceDpi / 96f;
+        // Text and margins grow with the card, from its original 354 × 140 (96 DPI) size up to 1.5×
+        private const float BaseW = 354, BaseH = 140, MaxZoom = 1.5f;
+        private float _zoom = 1;
+
+        private float S(float v) => v * DeviceDpi / 96f * _zoom;
 
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(RForm.FormBack);
+            float dpi = DeviceDpi / 96f;
+            _zoom = Math.Clamp(Math.Min(Width / dpi / BaseW, Height / dpi / BaseH), 1f, MaxZoom);
 
             var card = new RectangleF(0, 0, Width - 1, Height - 1);
             using (var bg = new SolidBrush(RForm.ChartMain))
@@ -53,31 +59,37 @@ namespace FwHelper.UI
                 g.DrawPath(border, path);
             }
 
-            using var titleFont = new Font(Font.FontFamily, 9f, FontStyle.Bold);
-            using var small = new Font(Font.FontFamily, 8f);
+            using var titleFont = new Font(Font.FontFamily, 9f * _zoom, FontStyle.Bold);
+            using var small = new Font(Font.FontFamily, 8f * _zoom);
             using var fore = new SolidBrush(RForm.ForeMain);
             using var dim = new SolidBrush(RForm.ForeDim);
 
             g.DrawString(Title, titleFont, fore, S(8), S(6));
 
-            // Latest values, right-aligned in series colours
+            // Latest values, right-aligned in series colours. When they'd run into the title, drop the note, then shrink them
             var last = _data.Count > 0 ? _data[^1] : null;
+            var values = Series.Select(s => (text: last is not null && s.Value(last) is double v ? $"{s.Name} {v.ToString(s.Format)}{Unit}" : $"{s.Name} –", s.Color)).ToList();
+            string? note = last is not null ? Note?.Invoke(last) : null;
+            float room = Width - S(8) - (S(8) + g.MeasureString(Title, titleFont).Width + S(10));
+            float Needed(Font f, bool withNote) =>
+                values.Sum(v => g.MeasureString(v.text, f).Width + S(4)) + (withNote && note is not null ? g.MeasureString(note, f).Width + S(6) : 0);
+            if (note is not null && Needed(small, true) > room) note = null;
+            float shrink = Math.Clamp(room / Math.Max(1, Needed(small, false)), 0.75f, 1f);
+            using var header = new Font(Font.FontFamily, 8f * _zoom * shrink);
+
             float x = Width - S(8);
-            if (last is not null && Note?.Invoke(last) is string note)
+            float headerY = S(8) + (g.MeasureString("0", small).Height - g.MeasureString("0", header).Height) / 2;
+            if (note is not null)
             {
-                var size = g.MeasureString(note, small);
-                x -= size.Width;
-                g.DrawString(note, small, dim, x, S(8));
+                x -= g.MeasureString(note, header).Width;
+                g.DrawString(note, header, dim, x, headerY);
                 x -= S(6);
             }
-            for (int i = Series.Count - 1; i >= 0; i--)
+            for (int i = values.Count - 1; i >= 0; i--)
             {
-                var s = Series[i];
-                string text = last is not null && s.Value(last) is double v ? $"{s.Name} {v.ToString(s.Format)}{Unit}" : $"{s.Name} –";
-                var size = g.MeasureString(text, small);
-                x -= size.Width;
-                using var brush = new SolidBrush(s.Color);
-                g.DrawString(text, small, brush, x, S(8));
+                x -= g.MeasureString(values[i].text, header).Width;
+                using var brush = new SolidBrush(values[i].Color);
+                g.DrawString(values[i].text, header, brush, x, headerY);
                 x -= S(4);
             }
 

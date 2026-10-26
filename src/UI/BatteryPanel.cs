@@ -39,6 +39,11 @@ namespace FwHelper.UI
         private bool _fillingSleepAfter;
 
         private const float StatsH = 172, StandbyH = 108, ChartH = 170, Gap = 10;
+        // Everything is laid out for a 696-wide panel (96 DPI) and zoomed to the window, up to 1.5×, as long as the
+        // history table still gets about 8 rows; extra height beyond that goes to the table
+        private const float BaseW = 696, TableMinH = 208, MaxZoom = 1.5f;
+        private float _zoom = 1;
+        private Font? _comboFont;
 
         public BatteryPanel()
         {
@@ -54,9 +59,25 @@ namespace FwHelper.UI
             Controls.Add(_sleepAfter);
         }
 
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            PerformLayout();
+        }
+
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
+            float dpi = DeviceDpi / 96f;
+            float zoom = Math.Clamp(Math.Min(Width / dpi / BaseW, Height / dpi / (StatsH + StandbyH + ChartH + TableMinH + 3 * Gap)), 1f, MaxZoom);
+            if (_comboFont is null || Math.Abs(zoom - _zoom) > 0.01f)
+            {
+                _zoom = zoom;
+                var old = _comboFont;
+                _comboFont = new Font(Font.FontFamily, 8f * _zoom);
+                _sleepAfter.Font = _comboFont;
+                old?.Dispose();
+            }
             _sleepAfter.Width = (int)S(90);
             _sleepAfter.Location = new Point((int)(Width - S(10) - _sleepAfter.Width), (int)(S(StatsH + Gap) + S(4)));
         }
@@ -103,6 +124,7 @@ namespace FwHelper.UI
             {
                 BatteryLog.Changed -= OnChanged;
                 _minute.Dispose();
+                _comboFont?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -142,7 +164,7 @@ namespace FwHelper.UI
             Invalidate();
         }
 
-        private float S(float v) => v * DeviceDpi / 96f;
+        private float S(float v) => v * DeviceDpi / 96f * _zoom;
 
         protected override void OnMouseClick(MouseEventArgs e)
         {
@@ -177,8 +199,8 @@ namespace FwHelper.UI
             var chart = new RectangleF(0, standby.Bottom + gap, Width - 1, chartH);
             var table = new RectangleF(0, chart.Bottom + gap, Width - 1, Height - chart.Bottom - gap - 1);
 
-            using var title = new Font(Font.FontFamily, 9f, FontStyle.Bold);
-            using var small = new Font(Font.FontFamily, 8f);
+            using var title = new Font(Font.FontFamily, 9f * _zoom, FontStyle.Bold);
+            using var small = new Font(Font.FontFamily, 8f * _zoom);
             using var fore = new SolidBrush(RForm.ForeMain);
             using var dim = new SolidBrush(RForm.ForeDim);
             using var accent = new SolidBrush(RForm.Accent);

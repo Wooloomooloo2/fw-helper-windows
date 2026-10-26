@@ -37,6 +37,31 @@ namespace FwHelper.UI
             ClientSize = new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s));
         }
 
+        /// <summary>
+        /// For resizable windows, after <see cref="ScaleToDpi"/>: opens at the size saved under <paramref name="key"/> (or
+        /// <paramref name="preferred"/>), kept inside the screen, and saves the size on close. Sizes are client sizes at 96 DPI.
+        /// </summary>
+        protected void RestoreSize(string key, Size preferred, Size minimum)
+        {
+            float s = DeviceDpi / 96f;
+            var work = Screen.FromPoint(Cursor.Position).WorkingArea;
+            Size Window(Size client) => SizeFromClientSize(new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s)));
+            Size Fit(Size window) => new(Math.Min(window.Width, work.Width), Math.Min(window.Height, work.Height));
+
+            var size = preferred;
+            if (AppConfig.GetString(key)?.Split(',') is [var a, var b] && int.TryParse(a, out int w) && int.TryParse(b, out int h))
+                size = new Size(Math.Max(w, minimum.Width), Math.Max(h, minimum.Height));
+            MinimumSize = Fit(Window(minimum));
+            Size = Fit(Window(size));
+
+            FormClosing += (_, _) =>
+            {
+                if (WindowState != FormWindowState.Normal) return;
+                float k = 96f / DeviceDpi;
+                AppConfig.Set(key, $"{(int)Math.Round(ClientSize.Width * k)},{(int)Math.Round(ClientSize.Height * k)}");
+            };
+        }
+
         protected override void OnDpiChanged(DpiChangedEventArgs e)
         {
             // Moved to a monitor with a different scale factor

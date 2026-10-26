@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Monitor and Battery windows
+- Both windows can now be resized and maximized. They open wider than before (Monitor 1080 × 820, Battery 900 × 880, kept
+  inside the screen) and remember their size (`monitor_size`, `battery_size` in config).
+- The text grows with the window, up to 1.5×. In the Monitor window, each chart's text follows the size of its card. In the
+  Battery window, the whole page zooms with the window width, as long as the history table still has room for about 8 rows.
+  Extra height goes to the table.
+- A chart's latest values no longer run into its title in a narrow card (Power, with five values). The note is dropped first,
+  then the values' text shrinks.
+- The Monitor's buttons no longer leave a gap where the hidden "Live" button is.
+
 ## 0.3.0 (2026-10-11)
 
 **Verified on the target laptop:** the battery log (percent steps, plug and unplug, screen on/off), the import of Windows' standby

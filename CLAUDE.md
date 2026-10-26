@@ -88,6 +88,9 @@ test on hardware. Add each new check to `docs/hardware-test-plan.md`. Built toda
 records and a "Sleep after" setting (ADR 0018 amendment). The battery's own cycle count is stuck at 1 (hardware-baseline.md).
 The user asked about importing `powercfg /batteryreport` history and hasn't answered yet.
 
+2026-10-19: the Monitor and Battery windows became resizable, and they zoom their text with the window (`RForm.RestoreSize`,
+`LineChart`/`BatteryPanel` `_zoom`). They were rendered offscreen at their default and minimum sizes; not yet used live. Not released yet.
+
 **Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts
 ([W] tags in hardware-baseline.md), settle open questions 1 and 2 and ADR 0014, then tag. Remaining gaps are listed in
 `docs/feature-parity.md` → Roadmap. The user has not yet given their feedback on v0.1.0.
@@ -194,6 +197,9 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
   render it offscreen from a throwaway xunit test (STA thread, `Location = (-4000,-4000)`, `Show()`, `DrawToBitmap`) into the scratchpad, then delete the test.
 - **Unit tests must never touch `AppConfig`.** It reads and writes the user's real `%AppData%\FwHelper\config.json`. Keep the logic
   pure (`ProfileList`, `FanController`, `PowerLimitKeeper`...) and test that.
+- **The Monitor and Battery windows are resizable and zoomed.** Their layout is written for the old 720-wide window at 96 DPI and
+  multiplied by `_zoom`, from 1 to 1.5×, in `S()`. New drawing code must use `S()` and fonts sized as `n * _zoom`, or it won't scale.
+  Closing either window saves its size to the real config: in offscreen render tests, `Dispose()` the form instead of closing it.
 - A disabled `RButton` used to draw its text twice (fixed 2026-10-05 in `OnPaint`). The profile buttons are hidden rather than disabled anyway.
 - **Argument order in `Program.Main` matters:** `--guard`, then CLI verbs, then `--selftest`/`--hwtest`, then `CloseOtherInstances`.
   A new argument placed after `CloseOtherInstances` will kill the user's running app.
