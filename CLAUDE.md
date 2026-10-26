@@ -57,7 +57,7 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | FPS (ETW present events) + overlay | ✅ FPS verified without admin (Dark Souls III, 60 FPS); overlay rendered offscreen | ADR 0017 |
 | Hardware test mode `--hwtest fansweep\|watchdog\|pl\|all` | 🟡 built, not yet run | `docs/hardware-test-plan.md` |
 | CI (GitHub Actions: build `-warnaserror`, test, publish artifact) | ✅ green | `.github/workflows/ci.yml` |
-| Autostart (Task Scheduler) | 🟡 not confirmed | |
+| Autostart (Task Scheduler) | ✅ verified | task `FwHelper` (logon trigger, runs on battery) → `publish\FwHelper.exe`; boot 2026-10-13 22:36:39 → app start 22:37:02 in the log |
 | Monitor window (6 live charts) + CSV session recording | 🟡 built. PDH counters checked on this machine; window rendered offscreen; not yet used live | ADR 0011 |
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
 | **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
@@ -89,7 +89,7 @@ records and a "Sleep after" setting (ADR 0018 amendment). The battery's own cycl
 The user asked about importing `powercfg /batteryreport` history and hasn't answered yet.
 
 2026-10-19: the Monitor and Battery windows became resizable, and they zoom their text with the window (`RForm.RestoreSize`,
-`LineChart`/`BatteryPanel` `_zoom`). They were rendered offscreen at their default and minimum sizes; not yet used live. Not released yet.
+`LineChart`/`BatteryPanel` `_zoom`). Rendered offscreen, then published to `publish\` and launched 2026-10-26; the user is keeping it. Not released yet (reports 0.3.0).
 
 **Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts
 ([W] tags in hardware-baseline.md), settle open questions 1 and 2 and ADR 0014, then tag. Remaining gaps are listed in
