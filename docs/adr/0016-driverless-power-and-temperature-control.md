@@ -53,3 +53,20 @@ undervolting is possible. Findings (2026-10-05, see `docs/hardware-baseline.md`)
 - Changing the power plan's frequency caps is visible in other tools, and persists if both the app and the guardian are killed.
 - If a frequency cap doesn't bind on this CPU (to be tested), the governor would do nothing. Its status line would show the cap
   climbing with no effect on watts, and the fallback would be the "maximum processor state" percentage settings.
+
+## Amendment (2026-11-04): CPU power cap and fixed CPU ceiling
+
+**Context.** After BIOS 03.04 / EC sakura-3.0.4, games are held by a shared package budget set by Intel DTT per Windows power mode
+(about 30 W sustained in Performance, 25 W in Balanced; see hardware-baseline.md → GPU) instead of the PL4 current limit. The CPU
+and GPU now trade watts inside that budget: HZD gives 15 W to the CPU and 9 W to the GPU, and capping the CPU should hand the
+difference to the GPU. A package power target can't do that, because it shrinks the whole budget, GPU included.
+
+**Decision.** Two more per-profile governor inputs, both off by default, both through the same frequency-cap actuator, so the
+save/restore and crash recovery above cover them unchanged:
+- **CPU power** (`cpu_power_target_<mode>`, 3–30 W): the same proportional loop, steering on a 5 s EMA of RAPL *cores* watts
+  (Energy Meter PP0) rather than the package. The pressure is the highest of package, cores and temperature.
+- **CPU max** (`cpu_max_mhz_<mode>`, 1000–4700 MHz, 100 MHz steps): a fixed ceiling. Dynamic cuts start from it, never from max
+  turbo, and it still applies when a dynamic target has no reading.
+
+**Consequences.** Whether a plan frequency cap binds is still open question 2; the CPU max setting is the most direct way to answer
+it. The cores reading includes nothing of the GPU, so a CPU power cap is game-independent in a way a frequency ceiling isn't.

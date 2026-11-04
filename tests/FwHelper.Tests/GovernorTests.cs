@@ -101,6 +101,54 @@ namespace FwHelper.Tests
             Assert.False(d.Capped);
             Assert.Equal("no reading", d.Reason);
         }
+
+        [Fact]
+        public void Fixed_ceiling_alone_is_applied_as_is()
+        {
+            var p = new GovernorPolicy(Max);
+            var d = p.Next(30, 90, null, null, maxMHz: 2200);
+            Assert.Equal(2200, d.CapMHz);
+            Assert.StartsWith("max", d.Reason);
+            Assert.Equal(2200, p.Next(null, null, null, null, maxMHz: 2250).CapMHz);   // rounded down to a 100 MHz step
+            Assert.False(p.Next(30, 90, null, null, maxMHz: Max).Capped);             // at max turbo = no cap
+        }
+
+        [Fact]
+        public void Cpu_power_target_cuts_on_cores_watts_not_package()
+        {
+            var p = new GovernorPolicy(Max);
+            // Package at 30 W is fine (no package target); the cores at 14 W are over a 6 W cap
+            var d = p.Next(30, 70, null, null, cpuW: 14, cpuTargetW: 6);
+            Assert.True(d.Capped);
+            Assert.StartsWith("cpu", d.Reason);
+            // Cores under their cap: no cut even with a high package draw
+            var q = new GovernorPolicy(Max);
+            for (int i = 0; i < 10; i++) Assert.False(q.Next(30, 70, null, null, cpuW: 4, cpuTargetW: 6).Capped);
+        }
+
+        [Fact]
+        public void Dynamic_cap_never_exceeds_the_fixed_ceiling()
+        {
+            var p = new GovernorPolicy(Max);
+            for (int i = 0; i < 50; i++)
+            {
+                var d = p.Next(10, 60, null, null, cpuW: 2, cpuTargetW: 10, maxMHz: 2000);   // far under the watt cap
+                Assert.Equal(2000, d.CapMHz);
+            }
+            // Going over the watt cap cuts from the ceiling, not from max turbo: the first cut lands just under 2000
+            GovernorDecision cut = default;
+            for (int i = 0; i < 20 && cut.CapMHz is 0 or 2000; i++) cut = p.Next(10, 60, null, null, cpuW: 20, cpuTargetW: 10, maxMHz: 2000);
+            Assert.InRange(cut.CapMHz, 1500, 1900);
+            Assert.StartsWith("cpu", cut.Reason);
+        }
+
+        [Fact]
+        public void Blind_dynamic_target_keeps_the_fixed_ceiling()
+        {
+            var p = new GovernorPolicy(Max);
+            var d = p.Next(null, null, 15, null, cpuW: null, cpuTargetW: 6, maxMHz: 1800);
+            Assert.Equal(1800, d.CapMHz);
+        }
     }
 
     /// <summary>Fake hardware with a crude CPU model: package watts track the frequency cap.</summary>
@@ -133,7 +181,7 @@ namespace FwHelper.Tests
         public void Converges_on_a_power_target()
         {
             var hw = new FakeGovernorHardware();            // uncapped: 5 + 7 * 4.8 = 38.6 W
-            using var g = new Governor(hw, () => (20, null), 4800, intervalMs: 1_000_000, log: _ => { });
+            using var g = new Governor(hw, () => new GovernorTargets(20, null), 4800, intervalMs: 1_000_000, log: _ => { });
             g.Start();
             for (int i = 0; i < 120; i++) g.Tick();
             double w = hw.ReadPower().PackageW!.Value;
@@ -145,7 +193,7 @@ namespace FwHelper.Tests
         public void Writes_only_when_the_cap_changes()
         {
             var hw = new FakeGovernorHardware { WattsPerGHz = 1 };   // always far under target
-            using var g = new Governor(hw, () => (25, null), 4800, intervalMs: 1_000_000, log: _ => { });
+            using var g = new Governor(hw, () => new GovernorTargets(25, null), 4800, intervalMs: 1_000_000, log: _ => { });
             g.Start();
             for (int i = 0; i < 20; i++) g.Tick();
             Assert.True(hw.Writes <= 1);
@@ -156,7 +204,7 @@ namespace FwHelper.Tests
         public void Stop_always_removes_the_cap()
         {
             var hw = new FakeGovernorHardware();
-            using var g = new Governor(hw, () => (10, null), 4800, intervalMs: 1_000_000, log: _ => { });
+            using var g = new Governor(hw, () => new GovernorTargets(10, null), 4800, intervalMs: 1_000_000, log: _ => { });
             g.Start();
             for (int i = 0; i < 10; i++) g.Tick();
             Assert.True(hw.Cap > 0);
@@ -170,11 +218,35 @@ namespace FwHelper.Tests
         {
             var hw = new FakeGovernorHardware();
             int? target = 10;
-            using var g = new Governor(hw, () => (target, null), 4800, intervalMs: 1_000_000, log: _ => { });
+            using var g = new Governor(hw, () => new GovernorTargets(target, null), 4800, intervalMs: 1_000_000, log: _ => { });
             g.Start();
             for (int i = 0; i < 10; i++) g.Tick();
             target = null;
             g.Tick();
+            Assert.Equal(0, hw.Cap);
+        }
+
+        [Fact]
+        public void Converges_on_a_cpu_power_target()
+        {
+            var hw = new FakeGovernorHardware();            // cores: 7 W/GHz, uncapped 33.6 W
+            using var g = new Governor(hw, () => new GovernorTargets(null, null, CpuW: 14), 4800, intervalMs: 1_000_000, log: _ => { });
+            g.Start();
+            for (int i = 0; i < 120; i++) g.Tick();
+            Assert.InRange(hw.ReadPower().CoresW!.Value, 12.5, 15);
+            Assert.InRange(hw.Cap, 1800, 2200);
+        }
+
+        [Fact]
+        public void Fixed_ceiling_is_written_once_and_released_on_stop()
+        {
+            var hw = new FakeGovernorHardware();
+            using var g = new Governor(hw, () => new GovernorTargets(null, null, MaxMHz: 2400), 4800, intervalMs: 1_000_000, log: _ => { });
+            g.Start();
+            for (int i = 0; i < 10; i++) g.Tick();
+            Assert.Equal(2400, hw.Cap);
+            Assert.Equal(1, hw.Writes);
+            g.Stop();
             Assert.Equal(0, hw.Cap);
         }
     }
@@ -279,6 +351,26 @@ namespace FwHelper.Tests
             Frames(c, 7, PresentSource.Kernel, 144, 0, 2);   // e.g. a Vulkan game
             Assert.InRange(c.Fps(7)!.Value, 142, 146);
         }
+
+        private static byte[] DxgiPayload(int pointerSize, uint flags)
+        {
+            var b = new byte[pointerSize + 8];
+            BitConverter.GetBytes(flags).CopyTo(b, pointerSize);
+            return b;
+        }
+
+        [Theory]
+        [InlineData(8, 0x1u, true)]      // DXGI_PRESENT_TEST: Horizon Zero Dawn Remastered sends one per frame (2026-11-04)
+        [InlineData(8, 0x201u, true)]
+        [InlineData(8, 0x200u, false)]   // ALLOW_TEARING: the real frame
+        [InlineData(8, 0x0u, false)]
+        [InlineData(4, 0x1u, true)]      // 32-bit process
+        public void Dxgi_test_presents_are_recognised(int pointerSize, uint flags, bool test) =>
+            Assert.Equal(test, FpsCounter.IsDxgiTestPresent(DxgiPayload(pointerSize, flags), pointerSize));
+
+        [Fact]
+        public void A_truncated_dxgi_payload_counts_as_a_frame() =>
+            Assert.False(FpsCounter.IsDxgiTestPresent(new byte[8], 8));
 
         [Fact]
         public void Busiest_presenter_is_the_fallback()

@@ -9,7 +9,7 @@ namespace FwHelper.Features
     /// </summary>
     public static class GovernorControl
     {
-        public const int MinPowerW = 8, MaxPowerW = 35;      // EC PL1 is 35 W: a target above it can't bind
+        public const int MinPowerW = 8, MaxPowerW = 35;      // PL1 tops out at 35 W (DTT holds 33 W in Performance on BIOS 03.04): a target above it can't bind
         public const int MinTempC = 70, MaxTempC = 95;
         /// <summary>Highest P-core turbo on the 358H (Linux topology: 4700/4800 MHz); a cap at or above this is "no cap".</summary>
         public const int CpuMaxMHz = 4800;
@@ -30,10 +30,28 @@ namespace FwHelper.Features
         public static int? TempCap() => AppConfig.Get("temp_cap", 0) is int c and > 0 ? c : null;
         public static void SetTempCap(int? celsius) => AppConfig.Set("temp_cap", celsius is int c ? Math.Clamp(c, MinTempC, MaxTempC) : 0);
 
+        public const int MinCpuW = 3, MaxCpuW = 30;
+        /// <summary>Lowest fixed ceiling offered in the UI: below this the desktop itself stutters.</summary>
+        public const int MinCpuMHz = 1000;
+
+        /// <summary>Per-profile CPU-cores watt cap: the rest of the package budget is left to the GPU.</summary>
+        public static int? CpuPowerTarget(int mode) => AppConfig.Get(AppConfig.ModeKey("cpu_power_target", mode), 0) is int w and > 0 ? w : null;
+        public static void SetCpuPowerTarget(int mode, int? watts) =>
+            AppConfig.Set(AppConfig.ModeKey("cpu_power_target", mode), watts is int w ? Math.Clamp(w, MinCpuW, MaxCpuW) : 0);
+
+        /// <summary>Per-profile fixed CPU frequency ceiling (MHz).</summary>
+        public static int? CpuFreqCap(int mode) => AppConfig.Get(AppConfig.ModeKey("cpu_max_mhz", mode), 0) is int f and > 0 ? f : null;
+        public static void SetCpuFreqCap(int mode, int? mhz) =>
+            AppConfig.Set(AppConfig.ModeKey("cpu_max_mhz", mode), mhz is int f ? Math.Clamp(f / 100 * 100, MinCpuMHz, CpuMaxMHz) : 0);
+
         public static bool IsBackstopEnabled() => AppConfig.Get("temp_backstop", 1) == 1;
         public static void SetBackstopEnabled(bool on) => AppConfig.Set("temp_backstop", on ? 1 : 0);
 
-        private static (int? powerW, int? tempC) Targets() => (PowerTarget(ModeControl.CurrentMode), TempCap());
+        private static GovernorTargets Targets()
+        {
+            int mode = ModeControl.CurrentMode;
+            return new GovernorTargets(PowerTarget(mode), TempCap(), CpuPowerTarget(mode), CpuFreqCap(mode));
+        }
 
         // ---- Lifecycle ----
 
@@ -47,12 +65,13 @@ namespace FwHelper.Features
         /// <summary>Apply the current profile's targets and the global cap (startup, mode change, resume, settings change).</summary>
         public static void Apply()
         {
-            var (power, temp) = Targets();
+            var targets = Targets();
+            var temp = targets.TempC;
 
             if (temp is int cap && IsBackstopEnabled()) EcBackstop.Apply(cap);
             else EcBackstop.Restore();
 
-            if (power is null && temp is null)
+            if (!targets.Any)
             {
                 if (_governor is not null) _governor.Stop();
                 RestoreSavedCaps(null);

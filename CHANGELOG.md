@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### CPU power cap and CPU max (ADR 0016 amendment)
+- Fans + Power has two new per-profile limits: **CPU power** (watts for the CPU cores only) and **CPU max** (a fixed MHz
+  ceiling). The CPU and GPU share one power budget, so in GPU-bound games capping the CPU leaves more for the GPU, which a package
+  power target can't do. Both use the existing governor, so the power plan is restored on quit, crash and hard kill as before.
+- The live line in Fans + Power shows CPU watts next to package watts.
+
 ### Monitor and Battery windows
 - Both windows can now be resized and maximized. They open wider than before (Monitor 1080 × 820, Battery 900 × 880, kept
   inside the screen) and remember their size (`monitor_size`, `battery_size` in config).

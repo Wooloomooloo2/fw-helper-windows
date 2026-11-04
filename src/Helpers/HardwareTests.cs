@@ -186,7 +186,7 @@ namespace FwHelper.Helpers
             }, TaskCreationOptions.LongRunning)).ToArray();
 
             using var hw = new EcGovernorHardware();
-            using var governor = powerTarget is null ? null : new Governor(hw, () => (powerTarget, null), GovernorControl.CpuMaxMHz, log: s => Logger.WriteLine("hwtest governor: " + s));
+            using var governor = powerTarget is null ? null : new Governor(hw, () => new GovernorTargets(powerTarget, null), GovernorControl.CpuMaxMHz, log: s => Logger.WriteLine("hwtest governor: " + s));
             governor?.Start();
             using var meter = new EnergyMeter();
             using var metrics = new SystemMetrics();

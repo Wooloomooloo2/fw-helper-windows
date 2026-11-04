@@ -24,8 +24,8 @@ namespace FwHelper.UI
         private readonly FanCurveEditor _editor;
         private readonly Label _liveLabel, _sensorList, _govStatus;
         private readonly RButton[] _overlayButtons = new RButton[3];
-        private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck;
-        private readonly Slider _powerSlider, _tempSlider;
+        private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck, _cpuPowerCheck, _cpuMaxCheck;
+        private readonly Slider _powerSlider, _tempSlider, _cpuPowerSlider, _cpuMaxSlider;
         private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
 
         public FansForm()
@@ -151,6 +151,26 @@ namespace FwHelper.UI
             _tip.SetToolTip(_powerCheck, "Sustained package power target for this profile. Holds it by lowering the CPU's maximum frequency.");
             y += 30;
 
+            _cpuPowerCheck = new CheckBox { Location = new Point(M, y + 4), Size = new Size(150, 22) };
+            _cpuPowerCheck.Click += (_, _) => CommitLimits();
+            Controls.Add(_cpuPowerCheck);
+            _cpuPowerSlider = new Slider { Min = GovernorControl.MinCpuW, Max = GovernorControl.MaxCpuW, Step = 1, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
+            _cpuPowerSlider.ValueChanged += (_, _) => _cpuPowerCheck.Text = $"CPU power: {_cpuPowerSlider.Value} W";
+            _cpuPowerSlider.ValueCommitted += (_, _) => CommitLimits();
+            Controls.Add(_cpuPowerSlider);
+            _tip.SetToolTip(_cpuPowerCheck, "Sustained CPU-cores power cap for this profile. The CPU and GPU share one package budget, so in GPU-bound games whatever the CPU doesn't use goes to the GPU.");
+            y += 30;
+
+            _cpuMaxCheck = new CheckBox { Location = new Point(M, y + 4), Size = new Size(150, 22) };
+            _cpuMaxCheck.Click += (_, _) => CommitLimits();
+            Controls.Add(_cpuMaxCheck);
+            _cpuMaxSlider = new Slider { Min = GovernorControl.MinCpuMHz, Max = GovernorControl.CpuMaxMHz - 100, Step = 100, Location = new Point(M + 156, y), Size = new Size(Inner - 156, 28) };
+            _cpuMaxSlider.ValueChanged += (_, _) => _cpuMaxCheck.Text = $"CPU max: {_cpuMaxSlider.Value} MHz";
+            _cpuMaxSlider.ValueCommitted += (_, _) => CommitLimits();
+            Controls.Add(_cpuMaxSlider);
+            _tip.SetToolTip(_cpuMaxCheck, "Fixed CPU frequency ceiling for this profile (Windows power plan, both core types).");
+            y += 30;
+
             _tempCheck = new CheckBox { Location = new Point(M, y + 4), Size = new Size(150, 22) };
             _tempCheck.Click += (_, _) => CommitLimits();
             Controls.Add(_tempCheck);
@@ -257,12 +277,22 @@ namespace FwHelper.UI
             _powerSlider.SetValueSilently(power ?? Modes.Base(mode) switch { Modes.Silent => 15, Modes.Turbo => 35, _ => 25 });
             _powerCheck.Text = $"Power: {_powerSlider.Value} W";
 
+            int? cpuW = GovernorControl.CpuPowerTarget(mode);
+            _cpuPowerCheck.Checked = cpuW is not null;
+            _cpuPowerSlider.SetValueSilently(cpuW ?? 10);
+            _cpuPowerCheck.Text = $"CPU power: {_cpuPowerSlider.Value} W";
+
+            int? cpuMhz = GovernorControl.CpuFreqCap(mode);
+            _cpuMaxCheck.Checked = cpuMhz is not null;
+            _cpuMaxSlider.SetValueSilently(cpuMhz ?? 2400);
+            _cpuMaxCheck.Text = $"CPU max: {_cpuMaxSlider.Value} MHz";
+
             int? cap = GovernorControl.TempCap();
             _tempCheck.Checked = cap is not null;
             _tempSlider.SetValueSilently(cap ?? 85);
             _tempCheck.Text = $"Temp cap: {_tempSlider.Value}°C";
             _backstopCheck.Checked = GovernorControl.IsBackstopEnabled();
-            _powerSlider.AccentColor = _tempSlider.AccentColor = Modes.ColorOf(mode);
+            _powerSlider.AccentColor = _tempSlider.AccentColor = _cpuPowerSlider.AccentColor = _cpuMaxSlider.AccentColor = Modes.ColorOf(mode);
 
             VisualiseOverlay();
             VisualisePowerLimits();
@@ -347,10 +377,12 @@ namespace FwHelper.UI
             for (int i = 0; i < 3; i++) _overlayButtons[i].Activated = i == overlay;
         }
 
-        /// <summary>Save the limit controls (power target for the edited profile, global temperature cap) and apply.</summary>
+        /// <summary>Save the limit controls (power targets and CPU ceiling for the edited profile, global temperature cap) and apply.</summary>
         private void CommitLimits()
         {
             GovernorControl.SetPowerTarget(_editMode, _powerCheck.Checked ? _powerSlider.Value : null);
+            GovernorControl.SetCpuPowerTarget(_editMode, _cpuPowerCheck.Checked ? _cpuPowerSlider.Value : null);
+            GovernorControl.SetCpuFreqCap(_editMode, _cpuMaxCheck.Checked ? _cpuMaxSlider.Value : null);
             GovernorControl.SetTempCap(_tempCheck.Checked ? _tempSlider.Value : null);
             GovernorControl.SetBackstopEnabled(_backstopCheck.Checked);
             // The temperature cap is global; the power target only matters if this is the active profile
@@ -361,6 +393,8 @@ namespace FwHelper.UI
         private void VisualisePowerLimits()
         {
             _powerSlider.Enabled = _powerCheck.Checked;
+            _cpuPowerSlider.Enabled = _cpuPowerCheck.Checked;
+            _cpuMaxSlider.Enabled = _cpuMaxCheck.Checked;
             _tempSlider.Enabled = _tempCheck.Checked;
             _backstopCheck.Enabled = _tempCheck.Checked;
 
@@ -379,7 +413,8 @@ namespace FwHelper.UI
             _editor.Invalidate();
 
             string duty = FanDutyText(FanControl.IsCustomActive, FanControl.LastDuty, FanControl.Status);
-            string power = GovernorControl.Instance?.LastPower.PackageW is double w ? $" · {w:0.0}W" : "";
+            var last = GovernorControl.Instance?.LastPower;
+            string power = (last?.PackageW is double w ? $" · {w:0.0}W" : "") + (last?.CoresW is double c ? $" (CPU {c:0.0}W)" : "");
             _liveLabel.Text = $"{(cpu is null ? "-" : cpu + "°C")} · {(fans.Count > 0 ? fans[0] + " RPM" : "-")} · {duty}{power}";
 
             var loop = FanControl.Loop;

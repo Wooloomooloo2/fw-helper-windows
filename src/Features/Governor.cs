@@ -27,7 +27,7 @@ namespace FwHelper.Features
     public sealed class Governor : IDisposable
     {
         private readonly IGovernorHardware _hw;
-        private readonly Func<(int? powerW, int? tempC)> _targets;
+        private readonly Func<GovernorTargets> _targets;
         private readonly int _intervalMs;
         private readonly Action<string> _log;
         private readonly GovernorPolicy _policy;
@@ -42,8 +42,9 @@ namespace FwHelper.Features
         public string Status { get; private set; } = "off";
         public PowerReading LastPower { get; private set; } = new(null, null, null, null);
         public double? SmoothedWatts => _policy.SmoothedWatts;
+        public double? SmoothedCpuWatts => _policy.SmoothedCpuWatts;
 
-        public Governor(IGovernorHardware hw, Func<(int? powerW, int? tempC)> targets, int maxMHz,
+        public Governor(IGovernorHardware hw, Func<GovernorTargets> targets, int maxMHz,
             int intervalMs = 1000, Action<string>? log = null)
         {
             _hw = hw;
@@ -87,9 +88,9 @@ namespace FwHelper.Features
             lock (_lock)
             {
                 if (_stopped) return;
-                var (powerW, tempC) = _targets();
+                var t = _targets();
                 LastPower = _hw.ReadPower();
-                var d = _policy.Next(LastPower.PackageW, _hw.CpuTemp(), powerW, tempC);
+                var d = _policy.Next(LastPower.PackageW, _hw.CpuTemp(), t.PackageW, t.TempC, LastPower.CoresW, t.CpuW, t.MaxMHz);
 
                 if (d.CapMHz != _appliedCap)
                 {
