@@ -32,7 +32,7 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-10)
 
-Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 175 unit tests pass. `publish/` is gitignored.
+Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 191 unit tests pass. `publish/` is gitignored.
 The user is running the battery monitor build from `publish\` (2026-10-11 09:53; it is the 0.3.0 code but reports 0.2.0). Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
@@ -54,7 +54,8 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | **Power target / temperature cap governor** (frequency cap via power plan, Energy Meter; ADR 0016) | 🟡 unit-tested against a fake; reads and a no-op cap write verified; **binding not yet verified** | `--hwtest governor` |
 | EC temperature backstop (`0x0050` PROCHOT threshold) | 🟡 code + pure tests; config read verified, write not yet run | ADR 0016 |
 | CPU/GPU/DRAM watts (Energy Meter) + EC throttle status (`0x3E22`) | ✅ verified without admin | ADR 0016 |
-| FPS (ETW present events) + overlay | ✅ FPS verified without admin (Dark Souls III, 60 FPS); overlay rendered offscreen | ADR 0017 |
+| FPS (ETW present events) + overlay | ✅ FPS verified without admin (Dark Souls III, 60 FPS; 2026-11-04 after the DXGI_PRESENT_TEST fix: Tomb Raider median 51/52 vs in-game 51/52, HZD halved 30.5/33 vs 31/33); overlay rendered offscreen | ADR 0017 |
+| GPU clock asked/actual + throttle reason (Intel IGCL) | ✅ read live without admin (Cyberpunk, Tomb Raider: actual pinned at ~1850 of 2500 MHz, reason PL4) | `IntelGpuClock` |
 | Hardware test mode `--hwtest fansweep\|watchdog\|pl\|all` | 🟡 built, not yet run | `docs/hardware-test-plan.md` |
 | CI (GitHub Actions: build `-warnaserror`, test, publish artifact) | ✅ green | `.github/workflows/ci.yml` |
 | Autostart (Task Scheduler) | ✅ verified | task `FwHelper` (logon trigger, runs on battery) → `publish\FwHelper.exe`; boot 2026-10-13 22:36:39 → app start 22:37:02 in the log |
@@ -62,7 +63,7 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
 | **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
 | CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
-| Unit tests | ✅ 175: battery history and standby, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 191: battery history and standby, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -90,6 +91,40 @@ The user asked about importing `powercfg /batteryreport` history and hasn't answ
 
 2026-10-19: the Monitor and Battery windows became resizable, and they zoom their text with the window (`RForm.RestoreSize`,
 `LineChart`/`BatteryPanel` `_zoom`). Rendered offscreen, then published to `publish\` and launched 2026-10-26; the user is keeping it. Not released yet (reports 0.3.0).
+
+2026-11-04: **Firmware A/B.** A BIOS update is said to fix the GPU being held to about 9 W. The user benchmarks games x
+Balanced/Performance at 1080p medium on BIOS 03.02 / EC sakura-3.0.2, then again after flashing (sessions in `Documents\FW Benchmark`).
+Pre-flash `FwSnapshot`s are in `%AppData%\FwHelper\fw-snapshots\`. Diff them after the flash, mainly `DptfTabl` (DTT: PPCC, PSVT, _TRT/_ART) and `PDatTabl` (GDDV, the DTT policy blob; thermald `thd_gddv.cpp`
+decodes it). An Intel driver bundle (DTT 9.1.10009.1745, IPF 2.3.20306.4) came in via Windows Update 2026-11-04 12:40–12:49, before
+the baseline. Fixed: FPS counted DXGI_PRESENT_TEST presents (HZD Remastered sends one per frame). Added: GPU clock asked/actual +
+throttle reason from Intel IGCL (`IntelGpuClock`, ControlLib.dll, needs the Level Zero flag, about 20 MB while telemetry runs; Cyberpunk
+showed "PL4" = current limit), a 9th Monitor card, CSV columns `gpu_req_mhz,gpu_mhz,gpu_throttle`. Sessions now go to
+`Documents\FW Benchmark` with no pruning. Committed 2026-11-04.
+
+**Pre-flash baseline (done 2026-11-04 18:15, results in hardware-baseline.md → GPU):** the clean A runs, all with GPU clock columns, are
+Cyberpunk 17:20 (Balanced) / 17:24 (Turbo), Tomb Raider 17:48 / 18:02, HZD 18:08 / 18:12. Ignore 16:44, 16:49 (FPS doubled),
+17:08, 17:12 (old build) and 17:32 (a false start). Only 3 games were run, not 4. On every run the GPU is pinned at about 1850 MHz,
+held by PL4 (current limit), with the package at 22–28 W. Final pre-flash snapshot: `fw-snapshots\20261104-181738` (identical to 170303).
+Then the user flashed the BIOS.
+
+**Flashed 2026-11-04 18:26: BIOS 03.04, EC sakura-3.0.4.** Only DptfTabl and PDatTabl changed. DTT now polls its 4 EC sensors
+(`_TSP` 0 → 1 s, Notify fixed), and the GDDV ITMT3 trip on SEN2 (VCCGT) went 55 → 59 °C (`ITM_33PL1` → `ITM55to59`). PL1MAX is
+unchanged (33 W Performance, 25 W Balanced). B runs: PL4 is gone, and games sit on a shared ~30 W package budget in Performance
+(Cyberpunk 43 → 51 FPS; HZD 33 → 40, with the CPU taking 15 W). Decoded tables and iasl are in this session's scratchpad (`aml\`).
+Built from this: **CPU power** and **CPU max** per-profile governor limits (ADR 0016 amendment), unit-tested and rendered offscreen,
+not yet published or run. Not yet written to hardware-baseline.md: the B results, the decode, and the correction that the A
+Balanced run was PL1-bound, not PL4. Tomb Raider B run pending.
+
+**After the flash, in order:**
+1. `..\publish\FwHelper.exe --status` (EC version line) and `dotnet run -c Release --project tools\FwSnapshot`. Diff against
+   `20261104-181738`: `acpi.txt` hashes first, then the changed tables (DptfTabl, PDatTabl, CpuSsdt, IgfxSsdt, FanTable, DSDT); `ec.txt`
+   (command list, thermal config, memmap); `drivers.txt` (a driver that changed would spoil the comparison); `powercfg.txt`. To decode
+   the AML, use ACPICA `iasl -d` (not installed, so ask before downloading it). GDDV holds the DTT policy.
+2. Check that the charge limit is back to 85 % and that the app started (autostart).
+3. B runs: the same 3 games x Balanced/Performance, 1080p medium (check the resolution, since Cyberpunk once launched at native res), with
+   one unrecorded Cyberpunk run first for the shader cache. Compare per game: FPS median/p5, gpu_mhz, gpu_throttle mix, gpu_w, cpu_mhz,
+   package_w, temperatures.
+4. If the fix shows up as a DTT/ACPI change, look at whether the same effect can be had on the old firmware without admin.
 
 **Next:** the user runs `docs/hardware-test-plan.md` in one session. Go through the results with them, fix what fails, record the facts
 ([W] tags in hardware-baseline.md), settle open questions 1 and 2 and ADR 0014, then tag. Remaining gaps are listed in
@@ -141,6 +176,9 @@ src/
                           RForm/RButton/Slider (G-Helper), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit, no hardware: FakeFan (fake EC) drives FanLoop; never touches AppConfig
+tools/
+  FwSnapshot/             read-only firmware snapshot for diffing BIOS/EC updates: all ACPI tables (SSDTs from HKLM\HARDWARE\ACPI),
+                          SMBIOS, EC command list/thermal config/memmap, power plan, Intel DTT/IPF drivers → fw-snapshots\<time>\
 ```
 
 ## Commands
@@ -154,6 +192,7 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 ..\publish\FwHelper.exe --status | Out-String   # CLI (see README); never replaces the running app
 ..\publish\FwHelper.exe --hwtest all   # targeted hardware experiments (see docs/hardware-test-plan.md); closes and restarts the tray app
 cd ..; dotnet test tests\FwHelper.Tests   # unit tests (no hardware needed)
+dotnet run -c Release --project tools\FwSnapshot   # read-only firmware snapshot; safe while the app runs
 ```
 
 Any change to fan logic goes in `FanController` together with a test. `FanControl` should stay a thin I/O shell.

@@ -135,6 +135,13 @@ From Framework's EC firmware source (branch `fwk-sakura-20260429`; `zephyr/progr
 
 - 2500 MHz is the **requested** clock. The sustained **achieved** clock is about 1950 MHz on AC, and 1300–1500 MHz on battery under heavy load.
 - The GPU and CPU trade clock speed under the electrical limit. None of the CPU-clock levers help in games.
+- **[W, 2026-11-04, BIOS 03.02 / EC sakura-3.0.2, AC, 1080p medium]** Intel IGCL (`ctlFrequencyGetState`, no admin) reports a GPU
+  range of 100–2500 MHz. In games the driver asks for 4250 MHz, but the GPU **sits at about 1850 MHz, and the throttle reason is
+  `CTL_FREQ_THROTTLE_REASON_FLAG_CURRENT_LIMIT` ("PL4", current excursion)** in 90–99 % of samples. That is the same electrical limit the
+  Linux EDP bit shows. Package power is only 22–28 W (PL1 35 W), at 71–80 °C, with no EC throttle. Balanced (when PL1 shows up
+  briefly) and Performance give the same FPS: Tomb Raider 51/52, HZD Remastered 33/33, Cyberpunk 42/43. In HZD the CPU is also held to
+  about 1.7 GHz / 7 W while the GPU is only about 70 % busy. GPU watts at the same 1850 MHz cap differ by game (HZD 9 W, Tomb Raider 11 W,
+  Cyberpunk 14 W), so the cap is a clock/current ceiling, not a wattage one. Sessions: `Documents\FW Benchmark\session-20261104-17*`/`18*`.
 
 ## Battery
 
