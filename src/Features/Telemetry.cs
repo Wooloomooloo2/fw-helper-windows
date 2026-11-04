@@ -18,6 +18,7 @@ namespace FwHelper.Features
         private static SystemMetrics? _metrics;
         private static EnergyMeter? _energy;
         private static PresentMonitor? _presents;
+        private static IntelGpuClock? _gpuClock;
 
         /// <summary>Why FPS isn't available (no ETW rights), for the UI; null when it works or isn't running.</summary>
         public static string? FpsError => _presents?.Error;
@@ -50,6 +51,8 @@ namespace FwHelper.Features
                     // The ETW session only runs while something shows or records telemetry
                     _presents = new PresentMonitor();
                     _presents.Start();
+                    // IGCL loads Level Zero (about 20 MB): only while telemetry is in use
+                    _gpuClock = new IntelGpuClock();
                     _timer = new System.Threading.Timer(_ => Tick(), null, 0, IntervalMs);
                 }
             }
@@ -65,6 +68,8 @@ namespace FwHelper.Features
                 _timer = null;
                 _presents?.Dispose();
                 _presents = null;
+                _gpuClock?.Dispose();
+                _gpuClock = null;
             }
         }
 
@@ -132,6 +137,8 @@ namespace FwHelper.Features
             PowerReading power;
             lock (_lock) power = _energy!.Read();
             var fps = _presents?.Current();
+            GpuClockReading? gpuClock;
+            lock (_lock) gpuClock = _gpuClock?.Read();
 
             var temps = FrameworkEc.GetTemperatures();
             int? Temp(string prefix) => temps.FirstOrDefault(t => t.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Celsius;
@@ -159,7 +166,10 @@ namespace FwHelper.Features
                 governor is { CapMHz: > 0 } g ? g.CapMHz : null,
                 fps?.fps,
                 fps?.app,
-                batt is { Present: true, Discharging: true, RateMa: > 0 } b ? (int)(b.RemainingMah * 60L / b.RateMa) : null);
+                batt is { Present: true, Discharging: true, RateMa: > 0 } b ? (int)(b.RemainingMah * 60L / b.RateMa) : null,
+                gpuClock?.RequestMhz,
+                gpuClock?.ActualMhz,
+                gpuClock?.ThrottleText);
         }
 
         /// <summary>What is holding the CPU back right now: our governor and/or the EC (soft event, hard PROCHOT). "" if nothing.</summary>

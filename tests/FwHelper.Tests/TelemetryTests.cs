@@ -49,14 +49,29 @@ namespace FwHelper.Tests
             Assert.Null(TelemetrySample.FromCsv(line));
         }
 
+        [Theory]
+        [InlineData(0u, "")]
+        [InlineData(0x4u, "PL4")]                 // seen live in Cyberpunk 2077, 2026-11-04
+        [InlineData(0x9u, "PL1+thermal")]
+        [InlineData(0x100u, "0x100")]             // unknown bits are shown, not dropped
+        public void Gpu_throttle_reasons_are_named(uint flags, string text) =>
+            Assert.Equal(text, FwHelper.Hardware.IntelGpuClock.Describe(flags));
+
         [Fact]
-        public void Prune_keeps_the_newest_sessions()
+        public void Gpu_clock_columns_round_trip_and_old_sessions_still_load()
         {
-            var files = Enumerable.Range(1, 25).Select(i => $@"C:\x\session-20261005-{i:000000}.csv").ToList();
-            var delete = SessionRecorder.ToPrune(files, 19).ToList();
-            Assert.Equal(6, delete.Count);
-            Assert.Contains(@"C:\x\session-20261005-000001.csv", delete);
-            Assert.DoesNotContain(@"C:\x\session-20261005-000025.csv", delete);
+            var s = new TelemetrySample(new DateTime(2026, 11, 4, 17, 0, 0), "Turbo", true, 50, 3000, 95, "3D", 1.5, 12, 32,
+                76, 34, 44, 55, 4500, -1, "EC auto", 86, null, 25.5, null, 8.2, 12.2, null, 1.3, null, 30, "Cyberpunk2077", null,
+                2900, 1350, "PL4");
+            Assert.Equal(s, TelemetrySample.FromCsv(s.ToCsv()));
+
+            // A 0.3.0 session has no gpu_* columns: they load as null
+            var oldHeader = string.Join(",", TelemetrySample.Columns.Take(TelemetrySample.Columns.Length - 3));
+            var oldRow = string.Join(",", s.ToCsv().Split(',').Take(TelemetrySample.Columns.Length - 3));
+            var loaded = TelemetrySample.FromCsv(oldRow, TelemetrySample.Layout(oldHeader));
+            Assert.NotNull(loaded);
+            Assert.Null(loaded!.GpuMhz);
+            Assert.Equal(30, loaded.Fps);
         }
 
         [Fact]

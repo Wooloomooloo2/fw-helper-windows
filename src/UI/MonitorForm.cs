@@ -15,7 +15,7 @@ namespace FwHelper.UI
         private static readonly Color Package = Color.FromArgb(235, 70, 70);
         private static readonly Color Memory = Color.FromArgb(160, 110, 255);
 
-        private readonly LineChart _load, _clock, _power, _temp, _fan, _memory, _fps, _battery;
+        private readonly LineChart _load, _clock, _gpuClock, _power, _temp, _fan, _memory, _fps, _battery;
         private readonly LineChart[] _charts;
         private readonly Label _status;
         private readonly RButton _record, _open, _live, _view;
@@ -63,6 +63,12 @@ namespace FwHelper.UI
             _clock.Series.Add(new("Cap", Package, s => s.FreqCapMHz));
             _clock.Note = s => s.Throttle is { Length: > 0 } t ? "limited by " + t : null;
 
+            _gpuClock = Card("GPU clock");
+            _gpuClock.Unit = " MHz";
+            _gpuClock.Series.Add(new("Asked", Package, s => s.GpuReqMhz));
+            _gpuClock.Series.Add(new("Actual", Gpu, s => s.GpuMhz));
+            _gpuClock.Note = s => s.GpuThrottle is { Length: > 0 } t ? "limited by " + t : s.GpuMhz is null ? "Intel GPU clock unavailable" : null;
+
             _power = Card("Power");
             _power.Unit = "W";
             _power.Series.Add(new("Package", Package, s => s.PackageW, "0.0"));
@@ -102,12 +108,12 @@ namespace FwHelper.UI
             _battery.Series.Add(new("Charge", Battery, s => s.BatteryPct));
             _battery.Note = s => s.OnAC ? "on AC" : s.BatteryMinutes is int m ? $"{m / 60}h{m % 60:00} left · {s.BatteryW:0.0} W" : null;
 
-            _charts = new[] { _load, _clock, _power, _temp, _fan, _memory, _fps, _battery };
+            _charts = new[] { _load, _clock, _gpuClock, _power, _temp, _fan, _memory, _fps, _battery };
 
-            ClientSize = new Size(720, 756);
+            ClientSize = new Size(720, 930);
             ResumeLayout(false);
             ScaleToDpi();
-            RestoreSize("monitor_size", new Size(1080, 820), new Size(720, 600));
+            RestoreSize("monitor_size", new Size(1080, 1000), new Size(720, 700));
             LayoutCards();
 
             Telemetry.Sampled += OnSampled;
@@ -127,7 +133,7 @@ namespace FwHelper.UI
             LayoutCards();
         }
 
-        /// <summary>Buttons along the top right, then the cards in a 2 × 4 grid filling the rest of the window.</summary>
+        /// <summary>Buttons along the top right, then the cards in a two-column grid filling the rest of the window (an odd last card spans both columns).</summary>
         private void LayoutCards()
         {
             if (_charts is null || WindowState == FormWindowState.Minimized) return;
@@ -143,9 +149,13 @@ namespace FwHelper.UI
 
             int top = m + P(ButtonH) + gap;
             int cw = (width - 2 * m - gap) / 2;
-            int ch = Math.Max(P(60), (ClientSize.Height - top - m - 3 * gap) / 4);
+            int rows = (_charts.Length + 1) / 2;
+            int ch = Math.Max(P(60), (ClientSize.Height - top - m - (rows - 1) * gap) / rows);
             for (int i = 0; i < _charts.Length; i++)
-                _charts[i].SetBounds(m + i % 2 * (cw + gap), top + i / 2 * (ch + gap), cw, ch);
+            {
+                bool alone = i == _charts.Length - 1 && i % 2 == 0; // an odd last card spans both columns
+                _charts[i].SetBounds(m + i % 2 * (cw + gap), top + i / 2 * (ch + gap), alone ? width - 2 * m : cw, ch);
+            }
         }
 
         protected override void OnShown(EventArgs e)

@@ -65,6 +65,16 @@ namespace FwHelper.Features
             return n;
         }
 
+        private const uint DxgiPresentTest = 0x1;
+
+        /// <summary>
+        /// True for a DXGI Present_Start / PresentMultiplaneOverlay_Start whose Flags include DXGI_PRESENT_TEST: an occlusion check
+        /// that shows no frame. Some games (Horizon Zero Dawn Remastered) make one every frame, which doubled the count; PresentMon
+        /// drops them too. Payload: pIDXGISwapChain (pointer), Flags (uint32), SyncInterval (int32).
+        /// </summary>
+        public static bool IsDxgiTestPresent(byte[] payload, int pointerSize) =>
+            payload.Length >= pointerSize + 4 && (BitConverter.ToUInt32(payload, pointerSize) & DxgiPresentTest) != 0;
+
         /// <summary>Forget processes that stopped presenting (call occasionally).</summary>
         public void Prune()
         {

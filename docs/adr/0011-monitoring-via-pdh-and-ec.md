@@ -32,7 +32,7 @@ Wildcard counters are re-expanded on every collect. On the 358H there were 896 G
 
 **Recording** (`SessionRecorder`): CSV in `%AppData%\FwHelper\sessions\session-yyyyMMdd-HHmmss.csv`. It has a fixed 21-column header
 (`TelemetrySample.Columns`), invariant culture, empty field = not available. It flushes every 10 rows, stops by itself after 12 h,
-and keeps the newest 20 sessions. These numbers match the Linux recorder. A recording carries on after the Monitor window closes. The tray menu has "Stop recording".
+and (since 2026-11-04) writes to `Documents\FW Benchmark` and never deletes sessions. A recording carries on after the Monitor window closes. The tray menu has "Stop recording".
 Saved sessions open back into the same charts.
 
 **UI** (`UI/MonitorForm.cs`, `UI/LineChart.cs`): six cards (Load, CPU clock, Power, Temperature, Fan, Memory), with the latest values in the

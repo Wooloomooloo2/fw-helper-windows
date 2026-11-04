@@ -67,7 +67,8 @@ namespace FwHelper.Hardware
         {
             int id = (int)e.ID;
             PresentSource? source =
-                e.ProviderGuid == Dxgi && (id == DxgiPresentStart || id == DxgiPresentMpoStart) ? PresentSource.Api :
+                e.ProviderGuid == Dxgi && (id == DxgiPresentStart || id == DxgiPresentMpoStart)
+                    ? (FpsCounter.IsDxgiTestPresent(e.EventData(), e.PointerSize) ? null : PresentSource.Api) :
                 e.ProviderGuid == D3D9 && id == D3D9PresentStart ? PresentSource.Api :
                 e.ProviderGuid == DxgKrnl && id == DxgKrnlPresentInfo ? PresentSource.Kernel : null;
             if (source is PresentSource s) Counter.Record(e.ProcessID, s, e.TimeStampRelativeMSec);
