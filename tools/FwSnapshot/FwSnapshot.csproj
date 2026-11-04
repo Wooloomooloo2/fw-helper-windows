@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Read-only firmware snapshot (ACPI, SMBIOS, EC) for diffing BIOS/EC updates. Not shipped with the app. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="windows.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\..\src\FwHelper.csproj" />
+  </ItemGroup>
+</Project>
