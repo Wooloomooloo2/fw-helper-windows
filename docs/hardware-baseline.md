@@ -37,7 +37,7 @@ When you measure something on Windows that confirms or contradicts an [L] fact, 
 | `0x0001` | HELLO | `0xA0B0C0D0` → `+0x01020304`. Startup gate [W] |
 | `0x0002` | GET_VERSION | 100-byte response. RO/RW string chosen by the image field at offset 96 [W] |
 | `0x0020` | PWM_GET_FAN_TARGET_RPM | Reads 0 under manual control [L] |
-| `0x0022/0x0023` | Keyboard backlight get/set | Percent [W] |
+| `0x0022/0x0023` | Keyboard backlight get/set | Percent [W]. **EC sakura-3.0.4: in bright ambient light the EC holds the backlight off.** A set reads back for about 100 ms, then reverts to 0 within 300 ms, and Fn+Space has no effect either. In normal light both work. The EC presumably uses the ambient light sensor (`HID\FRMW0005`); the threshold is not measured (2026-11-05) [W] |
 | `0x0024` | PWM_SET_FAN_DUTY | Percent, all fans. **Turns off EC auto.** In auto mode the EC stores whole percent [W][L] |
 | `0x0027` | PWM_GET_FAN_DUTY | v0 `{u8 fan}` → `{u32 percent}`. **Works in EC auto mode** and reads the EC's own choice (25–27 % at board 45–46 °C) [W] |
 | `0x0051` | THERMAL_GET_THRESHOLD | v1 `{u32 sensor}` → `{u32 host[warn,high,halt], release[3], fan_off, fan_max}` in K. See the sensor table [W] |

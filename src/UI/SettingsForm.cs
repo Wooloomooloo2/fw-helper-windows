@@ -95,6 +95,9 @@ namespace FwHelper.UI
             };
             _kbSlider.ValueCommitted += (_, _) => AppConfig.Set("kb_brightness", _kbSlider.Value);
             Controls.Add(_kbSlider);
+            const string kbTip = "In bright light the Framework EC keeps the keyboard backlight off, and overrides both this slider and Fn+Space";
+            _tip.SetToolTip(_kbSlider, kbTip);
+            _tip.SetToolTip(_kbLabel, kbTip);
             y += 28 + 8;
 
             _ledLabel = MakeLabel("Power LED", M, y + 6, 130);
