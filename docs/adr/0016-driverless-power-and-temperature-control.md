@@ -70,3 +70,17 @@ save/restore and crash recovery above cover them unchanged:
 
 **Consequences.** Whether a plan frequency cap binds is still open question 2; the CPU max setting is the most direct way to answer
 it. The cores reading includes nothing of the GPU, so a CPU power cap is game-independent in a way a frequency ceiling isn't.
+
+## Amendment (2026-11-06): the cap is ignored under Best Performance; anti-windup
+
+**Finding** (hardware-baseline.md → Driverless Windows interfaces): `PROCFREQMAX` binds under the Balanced overlay and is ignored
+under Best Performance, whose own scheme sets it to 0. Writing to the overlay needs admin. "Maximum processor state" binds under
+both, but below 100 % it switches turbo off (99 % ≈ 1.8 GHz), so it can't act as a fine-grained actuator.
+
+**Decision, for now:**
+- **Anti-windup.** The governor reads the fastest core's effective clock (its own PDH query, per-core `% Processor Performance` ×
+  `Processor Frequency`). If it stays above `cap × 1.15 + 150` MHz for 3 ticks, the cap isn't being applied: the governor releases
+  it, pauses cutting for 30 ticks, and reports "cap not binding". A cap that has no effect no longer winds down to the 800 MHz floor.
+- **The policy resets on every profile switch and settings change.** One profile's cap and averages no longer carry over into
+  the next. While a cap is being raised, the status says "easing off" instead of naming a target that is far away.
+- Still open: what to offer in Performance mode, where the only reachable settings are "turbo on" and "≤ ~1.8 GHz".

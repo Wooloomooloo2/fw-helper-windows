@@ -7,6 +7,19 @@
   ceiling). The CPU and GPU share one power budget, so in GPU-bound games capping the CPU leaves more for the GPU, which a package
   power target can't do. Both use the existing governor, so the power plan is restored on quit, crash and hard kill as before.
 - The live line in Fans + Power shows CPU watts next to package watts.
+- **Known limit:** Windows ignores CPU frequency caps while the power mode is **Performance** (Best Performance overlay), and
+  only admin could change that. CPU power, CPU max and the power target therefore only take effect in Balanced and Efficiency.
+  In Performance the governor now notices this: it shows "cap not binding" and releases the cap, instead of cutting it to 800 MHz.
+  Fans + Power says so under the limits whenever the profile's Windows power mode is Performance.
+- The governor starts afresh on every profile switch, so a Balanced profile no longer inherits the previous profile's cap for
+  half a minute. While a cap is being raised, its status says "easing off".
+
+### Keyboard backlight state
+- Under the Keyboard slider, a line shows what the EC is actually doing: on or off, its level, and the ambient light in lux.
+- The Framework EC has an **Auto** mode, which Fn+Space enters after High. In Auto the EC turns the backlight off above 5 lux
+  (most rooms) and overrides the slider. When a slider change is overridden like this, the line says so and points to
+  Fn+Space, which is the only way out of Auto. There is no idle timeout to set: the EC has none.
+- The slider follows Fn+Space level changes, so startup no longer puts back an old level.
 
 ### Monitor and Battery windows
 - Both windows can now be resized and maximized. They open wider than before (Monitor 1080 × 820, Battery 900 × 880, kept

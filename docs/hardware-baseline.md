@@ -14,10 +14,10 @@ When you measure something on Windows that confirms or contradicts an [L] fact, 
 
 | | |
 |---|---|
-| Model | Framework Laptop 13 Pro, board `FRANMJCP07`, BIOS 03.02 [L] |
+| Model | Framework Laptop 13 Pro, board `FRANMJCP07`. BIOS 03.02 [L]; **03.04** (2026-10-16) since 2026-11-04 [W] |
 | CPU | Intel Core Ultra X7 358H: 16 CPUs, no SMT. P-cores 0–3, E-cores 4–11, LP-E cores 12–15 [L] |
 | GPU | Intel Arc B390 (integrated). rp0 2500 / rpe 900 / rpn 100 MHz [L] |
-| EC | `sakura-3.0.2-cf48815` (Nuvoton npcx9m3f) [W][L] |
+| EC | `sakura-3.0.2-cf48815` (Nuvoton npcx9m3f) [W][L]; **`sakura-3.0.4-34ebc93`** (built 2026-10-15) since 2026-11-04 [W] |
 | Windows driver | Framework `CrosEcBus` → `\\.\GLOBALROOT\Device\CrosEC`, opens without admin rights [W] |
 | Sleep | **Modern Standby only** (S0 Low Power Idle, plus hibernate). There are no S3 suspend/resume events: the log has never had a `Suspend` entry [W] 2026-10-10 |
 | Modern Standby phases | Kernel-Power 507 (System log, no admin) records each session: the **screen-off phase** (awake, **1.0–1.7 W**) and the **sleep phase** (**~0.33 W**, ~99 % DRIPS). On battery the screen-off phase lasts until "Sleep after" (DC `STANDBYIDLE`, 3600 s) runs out, timed from the screen turning off; closing the lid sleeps at once. "Austerity" (reason 55) is an exit reason. `STANDBYIDLE` is writable without admin [W] 2026-10-11 |
@@ -37,7 +37,7 @@ When you measure something on Windows that confirms or contradicts an [L] fact, 
 | `0x0001` | HELLO | `0xA0B0C0D0` → `+0x01020304`. Startup gate [W] |
 | `0x0002` | GET_VERSION | 100-byte response. RO/RW string chosen by the image field at offset 96 [W] |
 | `0x0020` | PWM_GET_FAN_TARGET_RPM | Reads 0 under manual control [L] |
-| `0x0022/0x0023` | Keyboard backlight get/set | Percent [W]. **EC sakura-3.0.4: in bright ambient light the EC holds the backlight off.** A set reads back for about 100 ms, then reverts to 0 within 300 ms, and Fn+Space has no effect either. In normal light both work. The EC presumably uses the ambient light sensor (`HID\FRMW0005`); the threshold is not measured (2026-11-05) [W] |
+| `0x0022/0x0023` | Keyboard backlight get/set | Percent [W]. **EC Auto mode:** Fn+Space cycles Off → Low 20 → Med 75 → High 100 → Auto → Off. In Auto the EC sets the level from the ambient light sensor: above 5 lux off, at or below 5 lux 5 %. It overrides host writes within about 300 ms (measured: a set reads back for about 100 ms, then 0). Only Fn+Space enters or leaves Auto, the state is kept in BBRAM (`KBSTATE` = 101), and no host command reads it. There is no idle timeout. Source: Framework EC `fwk-sakura-20260429`, `zephyr/program/framework/src/led.c` `auto_als_led_brightness`, `keyboard_customization_13.c`, `include/led.h` [W] |
 | `0x0024` | PWM_SET_FAN_DUTY | Percent, all fans. **Turns off EC auto.** In auto mode the EC stores whole percent [W][L] |
 | `0x0027` | PWM_GET_FAN_DUTY | v0 `{u8 fan}` → `{u32 percent}`. **Works in EC auto mode** and reads the EC's own choice (25–27 % at board 45–46 °C) [W] |
 | `0x0051` | THERMAL_GET_THRESHOLD | v1 `{u32 sensor}` → `{u32 host[warn,high,halt], release[3], fan_off, fan_max}` in K. See the sensor table [W] |
@@ -47,6 +47,7 @@ When you measure something on Windows that confirms or contradicts an [L] fact, 
 | `0x3E03` | CHARGE_LIMIT_CONTROL | `[mode, max, min]`. Modes: Disable 0x01, Set 0x02, Get 0x08, Override 0x80. **max comes before min.** Get returns `[max, min]`. (Not `0x3E07`) [W][L] |
 | `0x3E0E` | FP_LED_LEVEL_CONTROL | v0 set level (High 0 … UltraLow 3); v1 get `{percent, level}` [W] |
 | `0x3E22` | PROCHOT status | Read `0000` under load [L]. Not used yet |
+| memmap `0x80` | EC_MEMMAP_ALS | Ambient light, u16 lux (`ec_commands.h`). Read live: 324–336 lux in a bright room. This is the reading keyboard Auto uses [W] |
 
 Memory map offsets used: temperatures at `0x00`/`0x18` (K − 200 offset; `0xFF` = absent, `0xFC+` = error),
 fans at `0x10` (`0xFFFF` = absent, `0xFFFE` = stalled), thermal version at `0x23`, battery block at `0x40–0x7F`.
@@ -114,7 +115,18 @@ From Framework's EC firmware source (branch `fwk-sakura-20260429`; `zephyr/progr
 - **Energy Meter (EMI):** `\Energy Meter(RAPL_Package0_PKG|PP0|PP1|DRAM)\Power` in mW, no admin.
   Idle-ish reading: package 13.4, cores 9.6, GPU 0.2, DRAM 0.9 W.
 - **Frequency caps:** power-plan `PROCFREQMAX` (`75b0ae3f-…e100`) and `PROCFREQMAX1` (`…e101`), in MHz with 0 = no cap. Both are 0 by default,
-  and a write as a non-admin user succeeds. **Whether a cap binds under load is not yet verified.**
+  and a write as a non-admin user succeeds.
+- **[W, 2026-11-06] Whether the cap binds depends on the power overlay.** Measured with all 16 cores loaded; values are per-core effective MHz from PDH:
+  - **Balanced overlay:** a 1200 MHz cap binds on every core type (P 679 / E 904 / LP-E 960 MHz, cores 4.2 W).
+  - **Best Performance overlay: the cap is ignored** (P 4503 / E 3389 / LP-E 3300 MHz, cores 41 W, 97 °C). The overlay scheme
+    `ded574b5-…` sets its own `PROCFREQMAX` = 0, which overrides the base plan. Writing to the overlay needs admin
+    ("You do not have the permissions required").
+  - **"Maximum processor state"** (`PROCTHROTTLEMAX`/`PROCTHROTTLEMAX1`) binds under both overlays, but any value below 100 % turns turbo
+    off. Under Best Performance: 100 % → P 4490 MHz, 40 W; **99 % → P 1797 / E 1438 / LP-E 1500 MHz, 6.6 W**; 90 % → 1536; 80 % → 1212;
+    50 % → 464 MHz. Below 99 % it scales roughly in proportion. **Without admin, nothing between about 1.8 and 4.5 GHz can be reached
+    in Performance mode.**
+  - Consequence: every Performance-mode game run so far was uncapped. One example: a governor cap of 800 MHz, with the CPU at 2.5–2.9 GHz and 20–28 W
+    while loading (session `20261106-084901`). This answers open question 2.
 - **Accounts:** the user is in *Performance Log Users*, so real-time ETW sessions (FPS capture) don't need admin.
 
 ## Power [L unless marked]
@@ -127,6 +139,10 @@ From Framework's EC firmware source (branch `fwk-sakura-20260429`; `zephyr/progr
 - PL1 survives s2idle. After a reboot it comes back at about 35 W.
 - Throughput compared with 25 W: 30 W gives +8.9 %, 35 W gives +15.9 %. Each 10 W of PL1 adds about 12 °C. Idle draw is about 1.8 W.
 - **Games:** PL1 only binds up to about 21 W. 25 W gives the same fps as 35 W, and is quieter.
+- **[W] On Windows, Intel DTT sets the PL1 that games see,** below the EC's 35 W. It depends on the Windows power mode (GDDV `apat`
+  table): 33 W max in Performance, held at 30–33 W by the ITMT3 temperature controller, 25 W in Balanced, 15 W in power saver. Measured on
+  BIOS 03.04: 29.9 W sustained in Performance with the EC fan, 31.5 W with a high custom fan, about 25 W in Balanced. The 35 W ceiling
+  above applies to all-core loads on Linux, which has no DTT. See "Firmware 03.02 → 03.04".
 - Undervolting is impossible: MSR `0x150` is locked.
 - Throttle reasons: `0x64F` (core), `0x6B0` (graphics), `0x6B1` (ring). Under load only bit 8 (EDP) shows up.
 - RAPL energy counters can be read for package/core/uncore, so CPU and GPU watts can be separated. The core and uncore domains *limit* nothing.
@@ -138,10 +154,49 @@ From Framework's EC firmware source (branch `fwk-sakura-20260429`; `zephyr/progr
 - **[W, 2026-11-04, BIOS 03.02 / EC sakura-3.0.2, AC, 1080p medium]** Intel IGCL (`ctlFrequencyGetState`, no admin) reports a GPU
   range of 100–2500 MHz. In games the driver asks for 4250 MHz, but the GPU **sits at about 1850 MHz, and the throttle reason is
   `CTL_FREQ_THROTTLE_REASON_FLAG_CURRENT_LIMIT` ("PL4", current excursion)** in 90–99 % of samples. That is the same electrical limit the
-  Linux EDP bit shows. Package power is only 22–28 W (PL1 35 W), at 71–80 °C, with no EC throttle. Balanced (when PL1 shows up
-  briefly) and Performance give the same FPS: Tomb Raider 51/52, HZD Remastered 33/33, Cyberpunk 42/43. In HZD the CPU is also held to
-  about 1.7 GHz / 7 W while the GPU is only about 70 % busy. GPU watts at the same 1850 MHz cap differ by game (HZD 9 W, Tomb Raider 11 W,
+  Linux EDP bit shows. Package power is only 22–28 W, at 71–80 °C, with no EC throttle. Balanced and Performance give the same FPS
+  (in-game counter: Tomb Raider 51/52, HZD Remastered 33/33, Cyberpunk 42/43). *Correction (2026-11-04):* not every run is PL4-bound.
+  Cyberpunk in Balanced is held by PL1 (80 %, 1650 MHz); the other five runs are PL4-bound. In HZD the CPU is also held to about
+  1.7 GHz / 7 W while the GPU is only about 70 % busy. GPU watts at the same 1850 MHz cap differ by game (HZD 9 W, Tomb Raider 11 W,
   Cyberpunk 14 W), so the cap is a clock/current ceiling, not a wattage one. Sessions: `Documents\FW Benchmark\session-20261104-17*`/`18*`.
+- **[W, 2026-11-04/06, BIOS 03.04 / EC sakura-3.0.4, AC, 1080p medium] PL4 no longer binds.** Every run is held by PL1, a
+  package budget shared by the CPU and GPU that Intel DTT sets per Windows power mode: **about 25 W in Balanced and 30–31.5 W in
+  Performance** (see "Firmware 03.02 → 03.04" below). Inside it the CPU now clocks higher, and in CPU-heavy games it takes watts
+  from the GPU. FPS is the median from FW-Helper's capture; A = 03.02, B = 03.04:
+
+  | Game | Mode | FPS A → B (p5) | GPU MHz A → B | CPU W A → B | GPU W A → B | Package W A → B |
+  |---|---|---|---|---|---|---|
+  | Cyberpunk 2077 | Balanced | 42 → 46 (34 → 26*) | 1650 → 1650 | 7.1 → 6.0 | 12.6 → 13.0 | 24.2 → 24.9 |
+  | Cyberpunk 2077 | Performance | 43 → **51** (37 → 39) | 1850 → **2000** | 8.6 → 7.4 | 14.3 → 16.9 | 28.1 → 29.8 |
+  | HZD Remastered | Balanced | 33 → 37 (29 → 32) | 1850 → 1350 | 7.3 → 10.6 | 9.4 → 7.7 | 22.1 → 24.3 |
+  | HZD Remastered | Performance | 33 → **40** (28 → 35) | 1850 → 1550 | 7.5 → 14.8 | 9.3 → 9.2 | 22.3 → 29.9 |
+  | Shadow of the Tomb Raider | Balanced | 53 → **61** (33 → 43) | 1850 → 1650 | 7.3 → 8.2 | 10.8 → 11.1 | 23.6 → 24.9 |
+  | Shadow of the Tomb Raider | Performance + custom fan† | 52 → **68** (32 → 45) | 1850 → 2000 | 7.0 → 14.1 | 11.1 → 15.0 | 23.4 → 31.5 |
+
+  \* The B run is 80 s long against about 190 s for A, and its first seconds are loading. † Profile "Max Game" (Performance
+  overlay, a custom curve at about 91 % duty / 6640 rpm). Every other row uses the EC fan. **How much of the +31 % comes from the fan is
+  not separated yet**: no Tomb Raider Performance run with the EC fan was kept. Hint: with the fan the package held 31.5 W and the PL1
+  share fell to 85 %, against 29.9 W and 94–99 % in every Performance run with the EC fan. That fits ITMT3, which scales PL1 between 30
+  and 33 W with how cool SEN2 is (below). B sessions: Cyberpunk `20261104-182938`/`183152`, HZD `183804`/`184208`, Tomb Raider `20261106-082648`/`083738`.
+
+## Firmware 03.02 → 03.04 [W, 2026-11-04]
+
+Diffed with `tools/FwSnapshot` (snapshots `20261104-181738` → `182627`) and decompiled with ACPICA `iasl` 20260408. The Intel DTT/IPF
+drivers were the same in both snapshots, so the A/B comparison only reflects the firmware.
+
+- **Changed:** only `DptfTabl` (8736 → 8260 bytes) and `PDatTabl` (5191 → 5352) among the ACPI tables; the UEFI/PHAT/BGRT/FACS changes
+  happen on every flash. DSDT, CpuSsdt, IgfxSsdt and FanTable are byte-identical. The EC's command list, thermal config and memmap are unchanged.
+- **DptfTabl (DTT sensors SEN2 "VCCGT", SEN3 "top skin", SEN4 "battery", SEN5 "bottom skin and DDR", all read from the EC):**
+  - `_TSP` (sampling period) went from **0 to 10** (1 s). It was 0 on 03.02, so DTT never polled them.
+  - Temperature notifications now target the sensor (`Notify(\_SB.IETM.SENx, 0x91)`); they went to the parent (`Notify(^…)`) before.
+  - `PATC = 2` (two programmable aux trips) was added.
+- **PDatTabl / GDDV (DTT policy, LZMA inside the `REPO` record):**
+  - The ITMT3 performance entry (SEN2 → TCPU PL1, range 30000–33000 mW) has its **trip moved from 55.0 to 59.0 °C**
+    (`0x0CD2` → `0x0CFA` in 0.1 K). The policy name changed from `ITM_33PL1` to `ITM55to59`.
+  - A 59 °C ITM3 model was added, plus Geekbench app entries.
+  - Unchanged: PL1MAX 33 W Performance / 25 W Balanced and lid closed / 15 W power saver; PL2 60/60/60/30 W; PSVT and PPCC.
+- **Hypothesis, not verified:** with no sensor data, 03.02's DTT ran in a conservative state that held the package to the current
+  limit. We haven't located SEN2 (VCCGT) among the EC's own sensors: none of them sits near 59 °C in the Performance runs.
 
 ## Battery
 

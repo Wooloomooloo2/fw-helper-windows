@@ -9,6 +9,8 @@ namespace FwHelper.Features
         int? CpuTemp();
         /// <summary>Set the CPU frequency cap (MHz, 0 = none).</summary>
         bool SetCap(int mhz);
+        /// <summary>Highest per-core effective clock right now (MHz), or null. Used to see whether the cap is applied at all.</summary>
+        double? FastestCoreMHz() => null;
     }
 
     public sealed class EcGovernorHardware : IGovernorHardware, IDisposable
@@ -17,7 +19,31 @@ namespace FwHelper.Features
         public PowerReading ReadPower() => _meter.Read();
         public int? CpuTemp() => FrameworkEc.GetControlTemp(FrameworkEc.GetTemperatures());
         public bool SetCap(int mhz) => PowerPlan.SetCap(mhz);
-        public void Dispose() => _meter.Dispose();
+
+        // Own PDH query (one per consumer). Per-core effective MHz = base MHz x % Processor Performance / 100.
+        private readonly Pdh _pdh = new();
+        private IntPtr _perf, _freq;
+
+        public double? FastestCoreMHz()
+        {
+            if (_perf == IntPtr.Zero)
+            {
+                _perf = _pdh.Add(@"\Processor Information(*)\% Processor Performance");
+                _freq = _pdh.Add(@"\Processor Information(*)\Processor Frequency");
+            }
+            if (!_pdh.Collect()) return null;
+            var bases = _pdh.Values(_freq).Where(v => !v.name.Contains("_Total")).ToDictionary(v => v.name, v => v.value);
+            double? max = null;
+            foreach (var (name, pct) in _pdh.Values(_perf))
+                if (bases.TryGetValue(name, out double b) && b * pct / 100 is double mhz && (max is null || mhz > max)) max = mhz;
+            return max;
+        }
+
+        public void Dispose()
+        {
+            _meter.Dispose();
+            _pdh.Dispose();
+        }
     }
 
     /// <summary>
@@ -68,6 +94,12 @@ namespace FwHelper.Features
             _wake.Set();
         }
 
+        /// <summary>Start the policy over (profile switch, settings change): no inherited cap or averages. The next tick decides afresh.</summary>
+        public void ResetPolicy()
+        {
+            lock (_lock) _policy.Reset();
+        }
+
         /// <summary>Remove any cap and idle. Always writes "no cap", whatever we think the state is.</summary>
         public void Stop()
         {
@@ -90,7 +122,7 @@ namespace FwHelper.Features
                 if (_stopped) return;
                 var t = _targets();
                 LastPower = _hw.ReadPower();
-                var d = _policy.Next(LastPower.PackageW, _hw.CpuTemp(), t.PackageW, t.TempC, LastPower.CoresW, t.CpuW, t.MaxMHz);
+                var d = _policy.Next(LastPower.PackageW, _hw.CpuTemp(), t.PackageW, t.TempC, LastPower.CoresW, t.CpuW, t.MaxMHz, _hw.FastestCoreMHz());
 
                 if (d.CapMHz != _appliedCap)
                 {

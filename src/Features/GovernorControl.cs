@@ -84,6 +84,8 @@ namespace FwHelper.Features
 
             _hw ??= new EcGovernorHardware();
             _governor ??= new Governor(_hw, Targets, CpuMaxMHz);
+            // Profile switch or settings change: decide afresh, never carry the last profile's cap or averages over
+            _governor.ResetPolicy();
             _governor.Start();
             _governor.Tick();
         }

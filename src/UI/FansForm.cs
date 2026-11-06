@@ -22,7 +22,7 @@ namespace FwHelper.UI
         private readonly CheckBox _customFan, _floorCheck;
         private readonly Label _floorLabel;
         private readonly FanCurveEditor _editor;
-        private readonly Label _liveLabel, _sensorList, _govStatus;
+        private readonly Label _liveLabel, _sensorList, _govStatus, _limitsNote;
         private readonly RButton[] _overlayButtons = new RButton[3];
         private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck, _cpuPowerCheck, _cpuMaxCheck;
         private readonly Slider _powerSlider, _tempSlider, _cpuPowerSlider, _cpuMaxSlider;
@@ -134,6 +134,7 @@ namespace FwHelper.UI
                     Modes.SetOverlay(_editMode, overlay);
                     if (_editMode == ModeControl.CurrentMode) PowerNative.SetOverlay(overlay);
                     VisualiseOverlay();
+                    VisualisePowerLimits();
                 };
             }
             y += 32 + 14;
@@ -190,9 +191,11 @@ namespace FwHelper.UI
             _govStatus = Label("", M, y + 2, Inner);
             _govStatus.Tag = "dim";
             y += 22;
-            var note = Label("Limits the CPU cores only: GPU power isn't capped. No driver or admin needed.", M, y, Inner);
-            note.Tag = "dim";
-            y += 20 + 14;
+            _limitsNote = Label("", M, y, Inner);
+            _limitsNote.Height = 36;
+            _limitsNote.AutoEllipsis = false;
+            _limitsNote.Tag = "dim";
+            y += 36 + 14;
 
             // ---------- Sensors ----------
             Header("EC sensors", y);
@@ -402,7 +405,18 @@ namespace FwHelper.UI
             string governor = g is null || g.Status == "off" ? "Governor off" : "Governor: " + g.Status;
             string ec = EcBackstop.ActiveAtC is int at ? $" · EC throttles at {at}°C" : "";
             _govStatus.Text = governor + ec;
+            _limitsNote.Text = LimitsNote(Modes.GetOverlay(_editMode));
         }
+
+        private const int PerformanceOverlay = 2;
+
+        /// <summary>
+        /// The note under the limits. Every limit here works through the power plan's frequency cap, which Windows ignores under
+        /// the Best Performance overlay (measured 2026-11-06; the overlay's own setting needs admin to change).
+        /// </summary>
+        public static string LimitsNote(int overlay) => overlay == PerformanceOverlay
+            ? "⚠ No effect in Performance: Windows ignores these limits there (the EC hard throttle still works). Set this profile to Balanced to use them."
+            : "Limits the CPU cores only: GPU power isn't capped. No driver or admin needed.";
 
         private void RefreshLive()
         {

@@ -32,7 +32,7 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-10)
 
-Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 191 unit tests pass. `publish/` is gitignored.
+Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 211 unit tests pass. `publish/` is gitignored.
 The user is running the battery monitor build from `publish\` (2026-10-11 09:53; it is the 0.3.0 code but reports 0.2.0). Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
@@ -63,7 +63,7 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
 | **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
 | CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
-| Unit tests | ✅ 191: battery history and standby, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 211: battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -112,8 +112,10 @@ Then the user flashed the BIOS.
 unchanged (33 W Performance, 25 W Balanced). B runs: PL4 is gone, and games sit on a shared ~30 W package budget in Performance
 (Cyberpunk 43 → 51 FPS; HZD 33 → 40, with the CPU taking 15 W). Decoded tables and iasl are in this session's scratchpad (`aml\`).
 Built from this: **CPU power** and **CPU max** per-profile governor limits (ADR 0016 amendment), unit-tested and rendered offscreen,
-not yet published or run. Not yet written to hardware-baseline.md: the B results, the decode, and the correction that the A
-Balanced run was PL1-bound, not PL4. Tomb Raider B run pending.
+published 2026-11-04, not yet used in a game. The B results for all 3 games, the decode and the Balanced correction are in
+hardware-baseline.md (GPU, "Firmware 03.02 → 03.04"). Tomb Raider B: Balanced 53 → 61, Performance + custom fan 52 → 68. **Open:** a
+Tomb Raider Performance run with the EC fan, to separate the fan's share. 2026-11-05: keyboard backlight "EC Auto" explained and a live
+state line added under the slider (`KeyboardBacklight`, ALS from memmap 0x80). Built and tested, not yet committed or published.
 
 **After the flash, in order:**
 1. `..\publish\FwHelper.exe --status` (EC version line) and `dotnet run -c Release --project tools\FwSnapshot`. Diff against
@@ -132,7 +134,7 @@ Balanced run was PL1-bound, not PL4. Tomb Raider B run pending.
 
 Open questions:
 1. Fan scale: Windows 100 % → 7.3k rpm, but Linux full duty → about 5.2k. Which is right? `--hwtest fansweep`
-2. ~~Does MSR `0x610` bind PL1?~~ Moot: PawnIO removed (ADR 0016); the EC owns PL1/PL2. New question: **does a power-plan frequency cap (`PROCFREQMAX`) bind?** `--hwtest governor`
+2. ~~Does MSR `0x610` bind PL1?~~ Moot: PawnIO removed (ADR 0016); the EC owns PL1/PL2. **Does a power-plan frequency cap bind?** Answered 2026-11-06: **yes under the Balanced overlay, no under Best Performance** (the overlay sets its own `PROCFREQMAX`=0, and writing to it needs admin). "Max processor state" binds, but below 100 % it turns turbo off (99 % ≈ 1.8 GHz). The governor has anti-windup now. Fans + Power now warns under the limits in Performance. **Open:** a per-profile "CPU boost off" switch (PROCTHROTTLEMAX 99 %), waiting on a Cyberpunk test: Performance vs Balanced + CPU max ~2000 MHz (ADR 0016, 2nd amendment)
 3. ~~Can the EC's own auto-mode duty be read on Windows?~~ **Yes** (`0x0027`, 2026-10-05). The floor is built (ADR 0013).
 
 ## Layout

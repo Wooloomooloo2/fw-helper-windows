@@ -143,6 +143,56 @@ namespace FwHelper.Tests
         }
 
         [Fact]
+        public void A_cap_the_cpu_ignores_is_released_and_held_off()
+        {
+            var p = new GovernorPolicy(Max);
+            var d = p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: 4500);
+            Assert.True(d.Capped);
+            // The cores stay at 4.5 GHz whatever the cap: after 3 ticks the cap is released, not wound down to the floor
+            for (int i = 0; i < GovernorPolicy.NotBindingTicks; i++) d = p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: 4500);
+            Assert.False(d.Capped);
+            Assert.Equal(GovernorPolicy.NotBinding, d.Reason);
+            // ...and stays released for the hold period, even though the pressure is still there
+            for (int i = 1; i < GovernorPolicy.NotBindingHoldTicks; i++)
+                Assert.False(p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: 4500).Capped);
+            // Then it tries again
+            Assert.True(p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: 4500).Capped);
+        }
+
+        [Fact]
+        public void A_cap_the_cpu_follows_is_not_flagged()
+        {
+            var p = new GovernorPolicy(Max);
+            int cap = 0;
+            for (int i = 0; i < 60; i++)
+            {
+                var d = p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: cap == 0 ? 4500 : cap * 0.97);
+                Assert.NotEqual(GovernorPolicy.NotBinding, d.Reason);
+                cap = d.CapMHz;
+            }
+            Assert.True(cap > 0);
+        }
+
+        [Fact]
+        public void Raising_after_a_cut_says_easing_off()
+        {
+            var p = new GovernorPolicy(Max);
+            for (int i = 0; i < 10; i++) p.Next(20, 99, null, 85);      // well over the temperature cap
+            var d = p.Next(20, 70, null, 85);                           // now far under it
+            Assert.True(d.Capped);
+            Assert.Equal("easing off", d.Reason);
+        }
+
+        [Fact]
+        public void Reset_clears_a_not_binding_hold()
+        {
+            var p = new GovernorPolicy(Max);
+            for (int i = 0; i < 5; i++) p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: 4500);
+            p.Reset();
+            Assert.True(p.Next(30, 70, null, null, cpuW: 25, cpuTargetW: 10, fastestCoreMHz: 4500).Capped);
+        }
+
+        [Fact]
         public void Blind_dynamic_target_keeps_the_fixed_ceiling()
         {
             var p = new GovernorPolicy(Max);
@@ -159,13 +209,20 @@ namespace FwHelper.Tests
         public double IdleW = 5, WattsPerGHz = 7;
         public int? Temp = 60;
 
+        /// <summary>Like Windows under the Best Performance overlay: the cap is written but has no effect.</summary>
+        public bool IgnoresCap;
+
+        private int EffectiveMHz => Cap == 0 || IgnoresCap ? 4500 : Math.Min(Cap, 4500);
+
         public PowerReading ReadPower()
         {
-            double ghz = (Cap == 0 ? 4800 : Cap) / 1000.0;
+            double ghz = EffectiveMHz / 1000.0;
             return new PowerReading(IdleW + WattsPerGHz * ghz, WattsPerGHz * ghz, 0.5, 1);
         }
 
         public int? CpuTemp() => Temp;
+
+        public double? FastestCoreMHz() => EffectiveMHz;
 
         public bool SetCap(int mhz)
         {
@@ -235,6 +292,37 @@ namespace FwHelper.Tests
             for (int i = 0; i < 120; i++) g.Tick();
             Assert.InRange(hw.ReadPower().CoresW!.Value, 12.5, 15);
             Assert.InRange(hw.Cap, 1800, 2200);
+        }
+
+        [Fact]
+        public void Never_winds_down_to_the_floor_when_the_cap_is_ignored()
+        {
+            var hw = new FakeGovernorHardware { IgnoresCap = true };     // cores always at 4.5 GHz, 31.5 W
+            using var g = new Governor(hw, () => new GovernorTargets(null, null, CpuW: 10), 4800, intervalMs: 1_000_000, log: _ => { });
+            g.Start();
+            int lowest = int.MaxValue;
+            for (int i = 0; i < 120; i++)
+            {
+                g.Tick();
+                if (hw.Cap > 0) lowest = Math.Min(lowest, hw.Cap);
+            }
+            Assert.True(lowest >= 2 * GovernorPolicy.MinMHz, $"cap went down to {lowest} MHz");   // 3 cuts at most, then released
+            Assert.Contains("not binding", g.Status);
+        }
+
+        [Fact]
+        public void Reset_policy_drops_the_previous_profiles_cap()
+        {
+            var hw = new FakeGovernorHardware();
+            var targets = new GovernorTargets(null, null, CpuW: 8);
+            using var g = new Governor(hw, () => targets, 4800, intervalMs: 1_000_000, log: _ => { });
+            g.Start();
+            for (int i = 0; i < 20; i++) g.Tick();
+            Assert.True(hw.Cap > 0);
+            targets = new GovernorTargets(null, 94);                    // e.g. Balanced: only the global temp cap, far away
+            g.ResetPolicy();
+            g.Tick();
+            Assert.Equal(0, hw.Cap);
         }
 
         [Fact]
@@ -414,6 +502,17 @@ namespace FwHelper.Tests
                 80, 35, 45, 50, 4000, 60, "curve", 90, 21.5, 30.5, 25, 22.1, 6.4, "governor: 2400 MHz cap · EC: soft",
                 1.2, 2400, 144, "game", 95);
             Assert.Equal(s, TelemetrySample.FromCsv(s.ToCsv()));
+        }
+    }
+
+    public class LimitsNoteTests
+    {
+        [Fact]
+        public void Performance_warns_that_the_limits_do_nothing()
+        {
+            Assert.Contains("No effect in Performance", FwHelper.UI.FansForm.LimitsNote(2));
+            Assert.DoesNotContain("No effect", FwHelper.UI.FansForm.LimitsNote(1));
+            Assert.DoesNotContain("No effect", FwHelper.UI.FansForm.LimitsNote(0));
         }
     }
 }
