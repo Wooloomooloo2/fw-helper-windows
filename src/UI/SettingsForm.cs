@@ -16,6 +16,11 @@ namespace FwHelper.UI
         private readonly RButton _fansButton;
         private readonly Label _sensorsLabel, _batteryLabel, _chargeLabel, _screenLabel, _kbLabel, _ledLabel, _footerLabel;
         private readonly Slider _chargeSlider, _kbSlider;
+        private readonly Label _kbState;
+        private readonly System.Windows.Forms.Timer _kbCheck = new() { Interval = 1000 };
+        private DateTime _kbTouched;
+        /// <summary>Set when a slider write was seen overridden by EC Auto; cleared by a write that holds or a level Auto never sets.</summary>
+        private bool _kbAuto;
         private readonly RButton[] _screenButtons = new RButton[3];
         private readonly RButton[] _ledButtons = new RButton[4];
         private readonly CheckBox _startupCheck;
@@ -91,14 +96,34 @@ namespace FwHelper.UI
             _kbSlider.ValueChanged += (_, _) =>
             {
                 _kbLabel.Text = $"Keyboard: {_kbSlider.Value}%";
+                _kbTouched = DateTime.UtcNow;
                 FrameworkEc.SetKeyboardBacklight(_kbSlider.Value); // live preview while dragging
             };
-            _kbSlider.ValueCommitted += (_, _) => AppConfig.Set("kb_brightness", _kbSlider.Value);
+            _kbSlider.ValueCommitted += (_, _) =>
+            {
+                AppConfig.Set("kb_brightness", _kbSlider.Value);
+                // EC Auto overrides a write within ~300 ms: look again after a second to see whether it held
+                _kbCheck.Stop();
+                _kbCheck.Start();
+            };
+            _kbCheck.Tick += (_, _) =>
+            {
+                _kbCheck.Stop();
+                int? actual = FrameworkEc.GetKeyboardBacklight(), lux = FrameworkEc.GetAmbientLux();
+                if (KeyboardBacklight.WriteOverridden(_kbSlider.Value, actual, lux) is bool overridden) _kbAuto = overridden;
+                ShowKeyboardState(actual, lux);
+            };
             Controls.Add(_kbSlider);
-            const string kbTip = "In bright light the Framework EC keeps the keyboard backlight off, and overrides both this slider and Fn+Space";
+            string kbTip = "Fn+Space cycles Off → Low → Medium → High → Auto. In Auto the EC sets the backlight from the light sensor " +
+                                 $"(off above {KeyboardBacklight.AutoThresholdLux} lux, {KeyboardBacklight.AutoDarkPercent}% below) and overrides this slider. " +
+                                 "Only Fn+Space leaves Auto. There is no idle timeout.";
             _tip.SetToolTip(_kbSlider, kbTip);
             _tip.SetToolTip(_kbLabel, kbTip);
-            y += 28 + 8;
+            y += 28 + 2;
+            _kbState = MakeLabel("", M + 136, y, Inner - 136);
+            _kbState.Tag = "dim";
+            _tip.SetToolTip(_kbState, kbTip);
+            y += 20 + 8;
 
             _ledLabel = MakeLabel("Power LED", M, y + 6, 130);
             string[] ledNames = { "High", "Medium", "Low", "Min" };
@@ -197,6 +222,7 @@ namespace FwHelper.UI
             int kb = AppConfig.Get("kb_brightness", FrameworkEc.GetKeyboardBacklight() ?? 0);
             _kbSlider.SetValueSilently(kb);
             _kbLabel.Text = $"Keyboard: {kb}%";
+            RefreshKeyboard();
 
             _startupCheck.Checked = Startup.IsScheduled();
 
@@ -263,7 +289,31 @@ namespace FwHelper.UI
             else _batteryLabel.Text = "";
 
             Program.UpdateTrayText(cpu, fans.FirstOrDefault(), batt);
+            RefreshKeyboard();
         }
+
+        /// <summary>
+        /// Show the EC's actual backlight level and the light reading. Outside Auto, follow Fn+Space: the slider and the saved
+        /// level move to what the EC has (not while the user is dragging), so startup doesn't put back a stale level.
+        /// </summary>
+        private void RefreshKeyboard()
+        {
+            int? actual = FrameworkEc.GetKeyboardBacklight(), lux = FrameworkEc.GetAmbientLux();
+            if (actual is int a)
+            {
+                if (KeyboardBacklight.RulesOutAuto(a)) _kbAuto = false;
+                bool idle = (DateTime.UtcNow - _kbTouched).TotalSeconds > 3 && !_kbCheck.Enabled;
+                if (!_kbAuto && idle && a != _kbSlider.Value)
+                {
+                    _kbSlider.SetValueSilently(a);
+                    _kbLabel.Text = $"Keyboard: {a}%";
+                    AppConfig.Set("kb_brightness", a);
+                }
+            }
+            ShowKeyboardState(actual, lux);
+        }
+
+        private void ShowKeyboardState(int? actual, int? lux) => _kbState.Text = KeyboardBacklight.Describe(actual, lux, _kbAuto);
 
         private void ToggleFans()
         {

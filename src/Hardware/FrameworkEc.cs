@@ -264,6 +264,16 @@ namespace FwHelper.Hardware
             return Ec.Command(EC_CMD_PWM_SET_KEYBOARD_BACKLIGHT, 0, new[] { (byte)percent }) == EcStatus.Success;
         }
 
+        /// <summary>ec_commands.h: "ALS readings in lux (2 X 16 bits)". The Framework EC's keyboard Auto mode reads the first one.</summary>
+        private const int EC_MEMMAP_ALS = 0x80;
+
+        /// <summary>Ambient light in lux, from the EC memory map (no host command, no admin).</summary>
+        public static int? GetAmbientLux()
+        {
+            var m = Ec.ReadMemory(EC_MEMMAP_ALS, 2);
+            return m is null ? null : BitConverter.ToUInt16(m, 0);
+        }
+
         public enum PowerLedLevel : byte { High = 0, Medium = 1, Low = 2, UltraLow = 3 }
 
         /// <summary>Power button / fingerprint LED brightness in percent (v1 response: percentage, level).</summary>
