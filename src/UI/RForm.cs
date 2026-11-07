@@ -27,15 +27,56 @@ namespace FwHelper.UI
             DoubleBuffered = true;
         }
 
+        /// <summary>The DPI the bounds are currently laid out for (null until <see cref="ScaleToDpi"/>).</summary>
+        private int? _layoutDpi;
+
         /// <summary>Call at the end of the constructor, after all controls are added at 96 DPI coordinates.</summary>
         protected void ScaleToDpi()
         {
+            _layoutDpi = DeviceDpi;
             float s = DeviceDpi / 96f;
             if (Math.Abs(s - 1) < 0.01f) return;
             var client = ClientSize;
             Scale(new SizeF(s, s));
             ClientSize = new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s));
         }
+
+        /// <summary>
+        /// Before its handle exists a form reports the primary display's DPI, so the constructor lays it out for that. When the
+        /// window is then created on a display with another scale (the 200 % laptop panel next to a 150 % external screen),
+        /// Windows sends no DPI change, so rescale here. Fonts already follow the real DPI; only the bounds lag.
+        /// </summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyTheme();
+            bool rescale = _layoutDpi is int laid && DeviceDpi != laid;
+            if (rescale)
+            {
+                float s = (float)DeviceDpi / _layoutDpi!.Value;
+                var client = ClientSize;
+                MinimumSize = Size.Empty;
+                Scale(new SizeF(s, s));
+                ClientSize = new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s));
+            }
+            if (_layoutDpi is not null) _layoutDpi = DeviceDpi;
+
+            // Resizable windows: the exact saved size, now that the real DPI and frame are known (no drift between sessions)
+            if (_restore is var (size, minimum))
+            {
+                _restore = null;
+                float s = DeviceDpi / 96f;
+                var work = Screen.FromHandle(Handle).WorkingArea;
+                Size Window(Size client) => SizeFromClientSize(new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s)));
+                Size Fit(Size window) => new(Math.Min(window.Width, work.Width), Math.Min(window.Height, work.Height));
+                MinimumSize = Fit(Window(minimum));
+                Size = Fit(Window(size));
+                if (StartPosition == FormStartPosition.CenterScreen)
+                    Location = new Point(work.Left + (work.Width - Width) / 2, work.Top + (work.Height - Height) / 2);
+            }
+        }
+
+        private (Size size, Size minimum)? _restore;
 
         /// <summary>
         /// For resizable windows, after <see cref="ScaleToDpi"/>: opens at the size saved under <paramref name="key"/> (or
@@ -51,8 +92,10 @@ namespace FwHelper.UI
             var size = preferred;
             if (AppConfig.GetString(key)?.Split(',') is [var a, var b] && int.TryParse(a, out int w) && int.TryParse(b, out int h))
                 size = new Size(Math.Max(w, minimum.Width), Math.Max(h, minimum.Height));
+            // Approximate for now, so the constructor can lay out; OnHandleCreated applies it exactly
             MinimumSize = Fit(Window(minimum));
             Size = Fit(Window(size));
+            _restore = (size, minimum);
 
             FormClosing += (_, _) =>
             {
@@ -68,6 +111,7 @@ namespace FwHelper.UI
             float s = (float)e.DeviceDpiNew / e.DeviceDpiOld;
             var client = ClientSize;
             base.OnDpiChanged(e);
+            _layoutDpi = e.DeviceDpiNew;
             Scale(new SizeF(s, s));
             ClientSize = new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s));
         }
@@ -106,12 +150,6 @@ namespace FwHelper.UI
                 ChartMain = Color.FromArgb(252, 252, 252);
                 ChartGrid = Color.FromArgb(215, 215, 215);
             }
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            ApplyTheme();
         }
 
         public void ApplyTheme()
