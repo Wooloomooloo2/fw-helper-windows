@@ -83,7 +83,7 @@ namespace FwHelper.UI
         private void OnSampled(TelemetrySample s)
         {
             if (!IsHandleCreated) return;
-            var rows = Rows(s, Telemetry.FpsError);
+            var rows = Rows(s, Telemetry.FpsError, PowerModeWatcher.Status);
             BeginInvoke(() =>
             {
                 _rows = rows;
@@ -127,7 +127,7 @@ namespace FwHelper.UI
 
         // ---------- Content (pure, unit-tested) ----------
 
-        public static IReadOnlyList<OverlayRow> Rows(TelemetrySample s, string? fpsError = null)
+        public static IReadOnlyList<OverlayRow> Rows(TelemetrySample s, string? fpsError = null, PowerModeStatus? power = null)
         {
             static string W(double? w) => w is double v ? $"{v:0.0} W" : "– W";
             static string Pct(double? p) => p is double v ? $"{v:0}%" : "–%";
@@ -143,6 +143,7 @@ namespace FwHelper.UI
             string pkg = s.PackageW is double p ? $"{p:0.0} W / {limit} W ({p / limit * 100:0}%)" : "– W";
             if (s.FreqCapMHz is int cap) pkg += $"  cap {cap / 1000.0:0.0} GHz";
             rows.Add(new("PKG", pkg));
+            if (power is not null) rows.Add(new("PWR", $"{s.Mode} · Windows {power.ShortLabel}"));
 
             rows.Add(new("RAM", s.MemTotalGb > 0 ? $"{s.MemUsedGb / s.MemTotalGb * 100:0}%  ({s.MemUsedGb:0.0} / {s.MemTotalGb:0} GB)" : "–"));
 

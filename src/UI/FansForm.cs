@@ -22,7 +22,8 @@ namespace FwHelper.UI
         private readonly CheckBox _customFan, _floorCheck;
         private readonly Label _floorLabel;
         private readonly FanCurveEditor _editor;
-        private readonly Label _liveLabel, _sensorList, _govStatus, _limitsNote;
+        private readonly Label _liveLabel, _sensorList, _govStatus, _limitsNote, _overlayExplain, _winModeNow;
+        private readonly CheckBox _winSyncCheck;
         private readonly RButton[] _overlayButtons = new RButton[3];
         private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck, _cpuPowerCheck, _cpuMaxCheck;
         private readonly Slider _powerSlider, _tempSlider, _cpuPowerSlider, _cpuMaxSlider;
@@ -137,7 +138,22 @@ namespace FwHelper.UI
                     VisualisePowerLimits();
                 };
             }
-            y += 32 + 14;
+            y += 32 + 6;
+
+            _overlayExplain = Label("", M, y, Inner);
+            _overlayExplain.Height = 36;
+            _overlayExplain.AutoEllipsis = false;
+            _overlayExplain.Tag = "dim";
+            y += 36 + 2;
+            _winSyncCheck = new CheckBox { Text = "Keep Windows in step with the profile", Location = new Point(M, y), AutoSize = true };
+            _winSyncCheck.Click += (_, _) => PowerModeWatcher.SyncEnabled = _winSyncCheck.Checked;
+            _tip.SetToolTip(_winSyncCheck, "If Windows' power mode is changed elsewhere (Settings, another app), put the profile's mode back.\n" +
+                "Battery Saver always wins while it's on. Untick to let Windows' own setting win until the next profile switch.");
+            Controls.Add(_winSyncCheck);
+            _winModeNow = Label("", M + 250, y + 2, Inner - 250);
+            _winModeNow.TextAlign = ContentAlignment.TopRight;
+            _winModeNow.Tag = "dim";
+            y += 24 + 12;
 
             // ---------- Power & temperature limits (driverless governor, ADR 0016) ----------
             Header("Power && temperature limits", y);
@@ -378,6 +394,19 @@ namespace FwHelper.UI
         {
             int overlay = Modes.GetOverlay(_editMode);
             for (int i = 0; i < 3; i++) _overlayButtons[i].Activated = i == overlay;
+            _overlayExplain.Text = WindowsPowerMode.Explain[Math.Clamp(overlay, 0, 2)];
+            _tip.SetToolTip(_overlayExplain, $"Figures {WindowsPowerMode.MeasuredOn}. The Windows power mode sets the firmware's sustained power " +
+                "budget (Intel DTT), which the CPU and GPU share.");
+            _winSyncCheck.Checked = PowerModeWatcher.SyncEnabled;
+            VisualiseWindowsMode();
+        }
+
+        /// <summary>What Windows has right now, next to the "keep in step" box (warning colour when it differs from the active profile).</summary>
+        public void VisualiseWindowsMode()
+        {
+            var s = PowerModeWatcher.Status;
+            _winModeNow.Text = "Windows now: " + s.ShortLabel;
+            _winModeNow.ForeColor = s.Mismatch ? Color.FromArgb(214, 140, 0) : RForm.ForeDim;
         }
 
         /// <summary>Save the limit controls (power targets and CPU ceiling for the edited profile, global temperature cap) and apply.</summary>

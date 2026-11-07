@@ -1,0 +1,321 @@
+<title>BIOS 03.02 vs 03.04</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: single 760px technical-report column; three chart sections, each chart followed by its reading; conclusions last. */
+:root {
+  --bg: #f7f8f9;
+  --panel: #ffffff;
+  --ink: #15171a;
+  --ink-2: #4d525a;
+  --ink-3: #7a808a;
+  --rule: #dfe2e6;
+  --grid: #eceef1;
+  --a: #9aa0a8;          /* firmware 03.02 */
+  --b: #6250d6;          /* firmware 03.04 */
+  --cpu: #2a78d6;
+  --gpu: #eb6834;
+  --rest: #c3c8cf;
+  --good: #1d7a3e;
+  --warn: #9a6a00;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131518; --panel: #1b1e22; --ink: #eef0f2; --ink-2: #b8bdc5; --ink-3: #8a909a;
+    --rule: #2e3238; --grid: #24282d; --a: #7d838c; --b: #9085e9; --cpu: #3987e5; --gpu: #d95926;
+    --rest: #4a5058; --good: #5cc283; --warn: #e0b04a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131518; --panel: #1b1e22; --ink: #eef0f2; --ink-2: #b8bdc5; --ink-3: #8a909a;
+  --rule: #2e3238; --grid: #24282d; --a: #7d838c; --b: #9085e9; --cpu: #3987e5; --gpu: #d95926;
+  --rest: #4a5058; --good: #5cc283; --warn: #e0b04a; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 780px; margin: 0 auto; padding-block: 36px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 34px; }
+h1, h2 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -0.005em; }
+h1 { font-size: 2rem; line-height: 1.15; font-weight: 600; }
+h2 { font-size: 1.3rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 500 0.72rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); }
+header { display: flex; flex-direction: column; gap: 10px; }
+.lede { color: var(--ink-2); }
+.mono { font-family: var(--f-mono); font-size: 0.88em; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.tile .k { font: 600 1.55rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.tile .k small { font-size: 0.95rem; color: var(--ink-3); font-weight: 500; }
+.tile .d { font-size: 0.85rem; color: var(--ink-2); }
+section { display: flex; flex-direction: column; gap: 12px; }
+.chart { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 14px 8px; overflow-x: auto; position: relative; }
+.chart svg { display: block; width: 100%; min-width: 520px; height: auto; font-family: var(--f-body); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8rem; color: var(--ink-2); padding: 0 4px 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.sw.dot { border-radius: 50%; }
+.sw.dash { width: 16px; height: 0; border-top: 2px dashed var(--ink-3); border-radius: 0; }
+ul.points { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; max-width: 70ch; }
+ul.points li::marker { color: var(--ink-3); }
+.note { font-size: 0.82rem; color: var(--ink-3); }
+table { border-collapse: collapse; font-size: 0.86rem; width: 100%; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--ink-2); font-size: 0.78rem; }
+.tbl { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; }
+.up { color: var(--good); font-weight: 500; }
+.flat { color: var(--ink-3); }
+ol.concl { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 10px; max-width: 70ch; }
+ol.concl b { font-weight: 600; }
+.open { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.open h3 { margin: 0; font: 600 0.95rem var(--f-display); color: var(--warn); }
+.open ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
+#tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font: 0.78rem/1.45 var(--f-mono); padding: 7px 9px; border-radius: 4px; white-space: nowrap; z-index: 5; }
+.hit { cursor: default; }
+.hit:hover .mk, .hit:focus .mk { opacity: 0.85; }
+@media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } h1 { font-size: 1.6rem; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Framework 13 Pro · Core Ultra X7 358H · Arc B390 · AC · 1080p medium</div>
+    <h1>BIOS 03.02 vs 03.04: power, frame rate and power modes</h1>
+    <p class="lede">A summary of the A/B game runs in <span class="mono">docs/hardware-baseline.md</span>. A is BIOS 03.02 with EC sakura-3.0.2; B is BIOS 03.04 with EC sakura-3.0.4. The Intel DTT drivers were the same for both, so the differences come from the firmware. Three games, each run in Balanced and Performance, with the EC fan unless marked.</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="eyebrow">Median FPS gain</div><div class="k">+9 to +21%</div><div class="d">Every run is faster on 03.04 (EC fan). +31% in Tomb Raider with a custom fan.</div></div>
+    <div class="tile"><div class="eyebrow">What limits the chip</div><div class="k">PL4 <small>→</small> PL1</div><div class="d">A current limit capped the GPU on 03.02. On 03.04 the DTT package budget is the limit.</div></div>
+    <div class="tile"><div class="eyebrow">Performance over Balanced</div><div class="k">≈0% <small>→</small> +8–12%</div><div class="d">The power mode did nothing on 03.02. It now buys real frames for 5–7 W.</div></div>
+  </div>
+
+  <section>
+    <div class="eyebrow">1 · Power</div>
+    <h2>CPU and GPU watts inside the package</h2>
+    <div class="chart" id="c-power">
+      <div class="legend">
+        <span><i class="sw" style="background:var(--cpu)"></i>CPU cores</span>
+        <span><i class="sw" style="background:var(--gpu)"></i>GPU</span>
+        <span><i class="sw" style="background:var(--rest)"></i>Rest of package (uncore, memory, I/O)</span>
+        <span><i class="sw dash"></i>03.04 DTT PL1 for that mode</span>
+      </div>
+    </div>
+    <ul class="points">
+      <li><b>03.02 left power unused.</b> The package drew 22–28 W in either mode while the GPU sat at 1850 MHz, held by the PL4 current limit in 90–99% of samples. Balanced and Performance drew the same power, except in Cyberpunk.</li>
+      <li><b>03.04 fills the budget DTT sets.</b> The package runs at 24.3–24.9 W in Balanced (PL1 25 W) and 29.8–31.5 W in Performance (PL1 30–33 W). The CPU and GPU share that budget.</li>
+      <li><b>The extra watts go where the game needs them.</b> Cyberpunk, which is GPU-bound, gives them to the GPU: +2.6 W and 2000 MHz, while the CPU drops 1.2 W. Horizon Zero Dawn gives them to the CPU, which goes from 7.5 to 14.8 W; GPU watts stay flat and its clock falls from 1850 to 1550 MHz. That game was CPU-starved on 03.02, at about 1.7 GHz and 7 W. Tomb Raider in Performance raises both.</li>
+      <li>The rest of the package stays at 5–6 W, except Tomb Raider Performance on 03.04 at 2.4 W, which is worth re-checking.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="eyebrow">2 · Game performance</div>
+    <h2>Median FPS, 03.02 → 03.04</h2>
+    <div class="chart" id="c-fps">
+      <div class="legend">
+        <span><i class="sw dot" style="background:var(--a)"></i>03.02</span>
+        <span><i class="sw dot" style="background:var(--b)"></i>03.04</span>
+      </div>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Game · mode</th><th>Median FPS</th><th>Δ</th><th>5th-pct FPS</th><th>GPU MHz</th></tr></thead>
+        <tbody id="t-fps"></tbody>
+      </table>
+    </div>
+    <p class="note">* The 03.04 Cyberpunk Balanced run lasted 80 s against about 190 s for 03.02, and its first seconds are loading, so its 5th percentile is not comparable. † Tomb Raider Performance used the "Max Game" profile, a custom fan curve at about 91% duty. How much of its +31% comes from the fan has not been measured.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">3 · Power modes</div>
+    <h2>What Performance adds over Balanced</h2>
+    <div class="chart" id="c-mode">
+      <div class="legend">
+        <span><i class="sw" style="background:var(--a)"></i>03.02</span>
+        <span><i class="sw" style="background:var(--b)"></i>03.04</span>
+      </div>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Game</th><th>03.02 FPS · package W</th><th>03.04 FPS · package W</th><th>03.04 FPS per W, Bal / Perf</th></tr></thead>
+        <tbody id="t-mode"></tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li>On 03.02, Performance changed median FPS by −2% to +2%: noise. The GPU hit the same current limit in both modes.</li>
+      <li>On 03.04, Performance adds 8–12% for 5–7 W more package power, because DTT raises PL1 from 25 W to 30–33 W and that is now the limit.</li>
+      <li>Balanced on 03.04 gives the most frames per watt in all three games, and it beats Performance on 03.02 in all three at the same or lower power.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="eyebrow">4 · Conclusions</div>
+    <h2>What changed and what it means</h2>
+    <ol class="concl">
+      <li><b>03.04 moves the bottleneck from current to power.</b> On 03.02 the GPU stopped at a PL4 current limit near 1850 MHz with package power to spare. On 03.04 PL4 never binds, and every run is held by the DTT PL1 budget. The firmware diff points to DTT: its four EC sensors now report every second (<span class="mono">_TSP</span> 0 → 10) where 03.02 never polled them. That DTT then ran in a conservative state is a hypothesis, not yet verified.</li>
+      <li><b>The update is a straight gain for gaming.</b> Median FPS is up 9–21% in every game and mode with the EC fan, and the 5th percentile is up in every run that can be compared.</li>
+      <li><b>The Windows power mode now matters.</b> Performance is worth about 10% in these games. Balanced on 03.04 is the efficiency choice and still beats anything 03.02 could do.</li>
+      <li><b>The CPU/GPU split depends on the game, and the app can't tune it in Performance yet.</b> In CPU-heavy games the CPU now takes watts from the GPU. Without admin rights, the Best Performance overlay ignores frequency caps, so nothing between about 1.8 and 4.5 GHz can be set to shift that budget.</li>
+      <li><b>Cooling may buy a little more.</b> ITMT3 scales PL1 between 30 and 33 W with the SEN2 temperature. The custom-fan run held 31.5 W against 29.9 W with the EC fan, which fits that.</li>
+    </ol>
+    <div class="open">
+      <h3>Still open</h3>
+      <ul>
+        <li>Run Tomb Raider in Performance with the EC fan to separate the fan's share of the +31%.</li>
+        <li>Repeat Cyberpunk Balanced on 03.04 at full length to get a usable 5th percentile.</li>
+        <li>Find SEN2 (VCCGT): none of the EC's own sensors sits near the new 59 °C trip in Performance runs.</li>
+        <li>Check the 2.4 W rest-of-package reading in the Tomb Raider Performance run.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const D = [
+  {g:"Cyberpunk 2077", s:"Cyberpunk", m:"Balanced",    fA:42,fB:46,p5A:34,p5B:26,mA:1650,mB:1650,cA:7.1,cB:6.0, gA:12.6,gB:13.0,pA:24.2,pB:24.9, n:"*"},
+  {g:"Cyberpunk 2077", s:"Cyberpunk", m:"Performance", fA:43,fB:51,p5A:37,p5B:39,mA:1850,mB:2000,cA:8.6,cB:7.4, gA:14.3,gB:16.9,pA:28.1,pB:29.8, n:""},
+  {g:"HZD Remastered", s:"HZD",       m:"Balanced",    fA:33,fB:37,p5A:29,p5B:32,mA:1850,mB:1350,cA:7.3,cB:10.6,gA:9.4, gB:7.7, pA:22.1,pB:24.3, n:""},
+  {g:"HZD Remastered", s:"HZD",       m:"Performance", fA:33,fB:40,p5A:28,p5B:35,mA:1850,mB:1550,cA:7.5,cB:14.8,gA:9.3, gB:9.2, pA:22.3,pB:29.9, n:""},
+  {g:"Shadow of the Tomb Raider", s:"Tomb Raider", m:"Balanced",    fA:53,fB:61,p5A:33,p5B:43,mA:1850,mB:1650,cA:7.3,cB:8.2, gA:10.8,gB:11.1,pA:23.6,pB:24.9, n:""},
+  {g:"Shadow of the Tomb Raider", s:"Tomb Raider", m:"Performance", fA:52,fB:68,p5A:32,p5B:45,mA:1850,mB:2000,cA:7.0,cB:14.1,gA:11.1,gB:15.0,pA:23.4,pB:31.5, n:"†"},
+];
+const NS = "http://www.w3.org/2000/svg";
+const pct = (a,b) => (b-a)/a*100;
+const fmtP = v => (v>=0?"+":"−") + Math.abs(v).toFixed(1) + "%";
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const tip = document.getElementById("tip");
+function bindTip(node, host, html) {
+  node.setAttribute("tabindex", "0");
+  node.classList.add("hit");
+  const show = (x, y) => {
+    tip.innerHTML = html; tip.hidden = false;
+    const r = host.getBoundingClientRect(), tw = tip.offsetWidth;
+    let left = x - r.left + host.offsetLeft + 12;
+    if (left + tw > host.offsetLeft + host.offsetWidth) left = x - r.left + host.offsetLeft - tw - 12;
+    tip.style.left = Math.max(host.offsetLeft, left) + "px";
+    tip.style.top = (y - r.top + host.offsetTop + 12) + "px";
+  };
+  node.addEventListener("mousemove", e => show(e.clientX, e.clientY));
+  node.addEventListener("mouseleave", () => tip.hidden = true);
+  node.addEventListener("focus", () => { const b = node.getBoundingClientRect(); show(b.right, b.top); });
+  node.addEventListener("blur", () => tip.hidden = true);
+}
+document.querySelector(".wrap").style.position = "relative";
+document.querySelector(".wrap").appendChild(tip);
+
+/* ---------- Chart 1: stacked power bars ---------- */
+(function () {
+  const host = document.getElementById("c-power");
+  const W = 720, L = 150, R = 50, top = 24, bh = 15, gap = 4, grp = 18;
+  const H = top + D.length * (2*bh + gap + grp) + 4;
+  const svg = el("svg", {viewBox:`0 0 ${W} ${H}`, role:"img", "aria-label":"Stacked bars of CPU, GPU and rest-of-package watts for each game and mode, 03.02 versus 03.04"}, host);
+  const max = 35, x = v => L + v / max * (W - L - R);
+  for (let t = 0; t <= max; t += 5) {
+    el("line", {x1:x(t), x2:x(t), y1:top-6, y2:H-4, stroke:"var(--grid)", "stroke-width":1}, svg);
+    el("text", {x:x(t), y:top-11, "text-anchor":"middle", "font-size":11, fill:"var(--ink-3)", "font-family":"var(--f-mono)"}, svg, t + (t===max?" W":""));
+  }
+  let y = top;
+  D.forEach(d => {
+    const gy = y;
+    el("text", {x:0, y:gy+bh-2, "font-size":12.5, "font-weight":600, fill:"var(--ink)"}, svg, d.s + (d.n==="†"?" †":""));
+    el("text", {x:0, y:gy+bh+15, "font-size":11.5, fill:"var(--ink-2)"}, svg, d.m);
+    [["A","03.02",d.cA,d.gA,d.pA,d.mA,d.fA],["B","03.04",d.cB,d.gB,d.pB,d.mB,d.fB]].forEach(([k,lab,c,g,p,mhz,f], i) => {
+      const by = gy + i*(bh+gap);
+      el("text", {x:L-8, y:by+bh-3.5, "text-anchor":"end", "font-size":10.5, fill:"var(--ink-3)", "font-family":"var(--f-mono)"}, svg, lab);
+      const grpEl = el("g", {}, svg);
+      const rest = +(p - c - g).toFixed(1);
+      let x0 = 0;
+      [[c,"var(--cpu)"],[g,"var(--gpu)"],[rest,"var(--rest)"]].forEach(([v,col], j) => {
+        const w = x(x0+v) - x(x0) - (j<2?2:0);
+        el("rect", {class:"mk", x:x(x0), y:by, width:Math.max(0,w), height:bh, fill:col, rx: j===2?3:0}, grpEl);
+        x0 += v;
+      });
+      el("text", {x:x(p)+6, y:by+bh-3.5, "font-size":11, fill:"var(--ink)", "font-family":"var(--f-mono)"}, svg, p.toFixed(1));
+      bindTip(grpEl, host, `<b>${d.g} · ${d.m} · ${lab}</b><br>CPU ${c.toFixed(1)} W · GPU ${g.toFixed(1)} W<br>Rest ${rest.toFixed(1)} W · Package ${p.toFixed(1)} W<br>GPU ${mhz} MHz · ${f} fps`);
+    });
+    const pl = d.m === "Balanced" ? 25 : 33;
+    el("line", {x1:x(pl), x2:x(pl), y1:gy-3, y2:gy+2*bh+gap+3, stroke:"var(--ink-3)", "stroke-width":1.5, "stroke-dasharray":"3 3"}, svg);
+    y += 2*bh + gap + grp;
+  });
+})();
+
+/* ---------- Chart 2: FPS dumbbell ---------- */
+(function () {
+  const host = document.getElementById("c-fps");
+  const W = 720, L = 190, R = 70, top = 24, row = 34;
+  const H = top + D.length*row + 4;
+  const svg = el("svg", {viewBox:`0 0 ${W} ${H}`, role:"img", "aria-label":"Median FPS for each game and mode, 03.02 versus 03.04"}, host);
+  const lo = 30, hi = 70, x = v => L + (v-lo)/(hi-lo)*(W-L-R);
+  for (let t = lo; t <= hi; t += 10) {
+    el("line", {x1:x(t), x2:x(t), y1:top-6, y2:H-4, stroke:"var(--grid)", "stroke-width":1}, svg);
+    el("text", {x:x(t), y:top-11, "text-anchor":"middle", "font-size":11, fill:"var(--ink-3)", "font-family":"var(--f-mono)"}, svg, t + (t===hi?" fps":""));
+  }
+  D.forEach((d, i) => {
+    const cy = top + i*row + row/2;
+    el("text", {x:0, y:cy+4, "font-size":12.5, fill:"var(--ink)"}, svg).innerHTML =
+      `<tspan font-weight="600">${d.s}</tspan><tspan fill="var(--ink-2)"> · ${d.m}${d.n==="†"?" †":""}</tspan>`;
+    const g = el("g", {}, svg);
+    el("rect", {x:x(d.fA)-10, y:cy-12, width:x(d.fB)-x(d.fA)+20, height:24, fill:"transparent"}, g);
+    el("line", {x1:x(d.fA), x2:x(d.fB), y1:cy, y2:cy, stroke:"var(--rule)", "stroke-width":3, "stroke-linecap":"round"}, g);
+    el("circle", {class:"mk", cx:x(d.fA), cy, r:6, fill:"var(--a)", stroke:"var(--panel)", "stroke-width":2}, g);
+    el("circle", {class:"mk", cx:x(d.fB), cy, r:6.5, fill:"var(--b)", stroke:"var(--panel)", "stroke-width":2}, g);
+    el("text", {x:x(d.fA)-11, y:cy+4, "text-anchor":"end", "font-size":11, fill:"var(--ink-3)", "font-family":"var(--f-mono)"}, svg, d.fA);
+    el("text", {x:x(d.fB)+11, y:cy+4, "font-size":11, fill:"var(--ink)", "font-family":"var(--f-mono)"}, svg).innerHTML =
+      `${d.fB} <tspan fill="var(--good)" font-weight="500">${fmtP(pct(d.fA,d.fB)).replace(/\.\d/,"")}</tspan>`;
+    bindTip(g, host, `<b>${d.g} · ${d.m}</b><br>Median ${d.fA} → ${d.fB} fps (${fmtP(pct(d.fA,d.fB))})<br>5th pct ${d.p5A} → ${d.p5B}${d.n==="*"?"*":""} fps`);
+  });
+  document.getElementById("t-fps").innerHTML = D.map(d => {
+    const p5 = pct(d.p5A, d.p5B);
+    return `<tr><td>${d.s} · ${d.m}${d.n==="†"?" †":""}</td><td>${d.fA} → ${d.fB}</td><td class="up">${fmtP(pct(d.fA,d.fB))}</td>` +
+      `<td>${d.p5A} → ${d.p5B}${d.n==="*"?"*":""} <span class="${d.n==="*"?"flat":"up"}">${fmtP(p5)}</span></td><td>${d.mA} → ${d.mB}</td></tr>`;
+  }).join("");
+})();
+
+/* ---------- Chart 3: Performance vs Balanced uplift ---------- */
+(function () {
+  const host = document.getElementById("c-mode");
+  const games = [["Cyberpunk","Cyberpunk 2077"],["HZD","HZD Remastered"],["Tomb Raider †","Shadow of the Tomb Raider"]];
+  const rows = games.map(([s,g]) => {
+    const b = D.find(d => d.g===g && d.m==="Balanced"), p = D.find(d => d.g===g && d.m==="Performance");
+    return {s, g, A:pct(b.fA,p.fA), B:pct(b.fB,p.fB), b, p};
+  });
+  const W = 720, L = 150, R = 60, top = 24, bh = 15, gap = 4, grp = 20;
+  const H = top + rows.length*(2*bh+gap+grp) + 4;
+  const svg = el("svg", {viewBox:`0 0 ${W} ${H}`, role:"img", "aria-label":"Median FPS gain of Performance over Balanced, 03.02 versus 03.04"}, host);
+  const lo = -5, hi = 15, x = v => L + (v-lo)/(hi-lo)*(W-L-R);
+  for (let t = lo; t <= hi; t += 5) {
+    el("line", {x1:x(t), x2:x(t), y1:top-6, y2:H-4, stroke: t===0 ? "var(--ink-3)" : "var(--grid)", "stroke-width":1}, svg);
+    el("text", {x:x(t), y:top-11, "text-anchor":"middle", "font-size":11, fill:"var(--ink-3)", "font-family":"var(--f-mono)"}, svg, (t>0?"+":t<0?"−":"") + Math.abs(t) + "%");
+  }
+  let y = top;
+  rows.forEach(r => {
+    el("text", {x:0, y:y+bh+6, "font-size":12.5, "font-weight":600, fill:"var(--ink)"}, svg, r.s);
+    [["03.02",r.A,"var(--a)",r.b.fA,r.p.fA,r.b.pA,r.p.pA],["03.04",r.B,"var(--b)",r.b.fB,r.p.fB,r.b.pB,r.p.pB]].forEach(([lab,v,col,fb,fp,wb,wp], i) => {
+      const by = y + i*(bh+gap);
+      el("text", {x:L-14, y:by+bh-3.5, "text-anchor":"end", "font-size":10.5, fill:"var(--ink-3)", "font-family":"var(--f-mono)"}, svg, lab);
+      const g = el("g", {}, svg);
+      const x0 = Math.min(x(0), x(v)), w = Math.max(Math.abs(x(v)-x(0)), 1.5);
+      el("rect", {class:"mk", x:x0, y:by, width:w, height:bh, fill:col, rx:2}, g);
+      el("rect", {x:L, y:by, width:W-L-R, height:bh, fill:"transparent"}, g);
+      el("text", {x: v>=0 ? x(v)+6 : x(0)+6, y:by+bh-3.5, "font-size":11, fill:"var(--ink)", "font-family":"var(--f-mono)"}, svg, fmtP(v));
+      bindTip(g, host, `<b>${r.g} · ${lab}</b><br>Balanced ${fb} fps @ ${wb} W<br>Performance ${fp} fps @ ${wp} W<br>${fmtP(v)} fps · ${(wp-wb>=0?"+":"−")}${Math.abs(wp-wb).toFixed(1)} W`);
+    });
+    y += 2*bh + gap + grp;
+  });
+  const fpw = (f,w) => (f/w).toFixed(2);
+  document.getElementById("t-mode").innerHTML = rows.map(r =>
+    `<tr><td>${r.s}</td><td>${r.b.fA} → ${r.p.fA} · ${r.b.pA} → ${r.p.pA} W</td><td>${r.b.fB} → ${r.p.fB} · ${r.b.pB} → ${r.p.pB} W</td><td>${fpw(r.b.fB,r.b.pB)} / ${fpw(r.p.fB,r.p.pB)}</td></tr>`
+  ).join("");
+})();
+</script>

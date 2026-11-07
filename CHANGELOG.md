@@ -14,6 +14,22 @@
 - The governor starts afresh on every profile switch, so a Balanced profile no longer inherits the previous profile's cap for
   half a minute. While a cap is being raised, its status says "easing off".
 
+### Windows power mode, made visible
+- The Windows power mode sets the sustained power budget the CPU and GPU share (about 15 W in Efficiency, 25 W in Balanced and
+  30–33 W in Performance on BIOS 03.04). It matters more than the profile's name. The main window now shows the mode in effect,
+  under the profile buttons, with its budget.
+- FW-Helper follows Windows' own power mode notifications (no polling). If something else changes the mode (Windows Settings,
+  another app), the new **Keep Windows in step with the profile** option (Fans + Power, on by default) puts the profile's mode back,
+  and a tray notification says so. With it off, the line turns amber and offers **Fix**. Battery Saver is shown, never overridden,
+  and when it turns off the profile's mode comes back.
+- Fans + Power explains each power mode under its buttons. The tray tooltip, the overlay (new PWR row) and recordings (new
+  `win_mode` column) show the Windows mode too.
+
+### Windows on two displays at different scales
+- Windows opened on a display with a different scale from the main one (the laptop panel at 200 % next to an external screen at
+  150 %) came out 25 % too small, and the Monitor and Battery windows then saved the smaller size each time. Windows now rescale
+  when they open, and open at exactly their saved size.
+
 ### Keyboard backlight state
 - Under the Keyboard slider, a line shows what the EC is actually doing: on or off, its level, and the ambient light in lux.
 - The Framework EC has an **Auto** mode, which Fn+Space enters after High. In Auto the EC turns the backlight off above 5 lux

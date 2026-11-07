@@ -90,6 +90,11 @@ namespace FwHelper
             GovernorControl.Init(); // undo frequency caps / EC thresholds a crashed run left behind
             ApplyAll();
             BatteryLog.Start();
+            PowerModeWatcher.Resynced += (had, restored) => SettingsForm.BeginInvoke(() =>
+                TrayIcon.ShowBalloonTip(5000, "Windows power mode put back",
+                    $"Windows switched to {had}. The profile {Modes.Name(ModeControl.CurrentMode)} uses {restored}, so FW-Helper put it back. " +
+                    "To let Windows' setting win, untick \"Keep Windows in step\" in Fans + Power.", ToolTipIcon.Info));
+            PowerModeWatcher.Start();
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
             SystemEvents.SessionEnding += (_, _) => SafeShutdown();
@@ -229,7 +234,7 @@ namespace FwHelper
 
         public static void UpdateTrayText(int? cpu, int fanRpm, BatteryInfo? batt)
         {
-            string text = $"FW-Helper · {Modes.Name(ModeControl.CurrentMode)}\nCPU {(cpu is null ? "-" : cpu + "°C")} · Fan {fanRpm} RPM";
+            string text = $"FW-Helper · {Modes.Name(ModeControl.CurrentMode)} · Windows {PowerModeWatcher.Status.ShortLabel}\nCPU {(cpu is null ? "-" : cpu + "°C")} · Fan {fanRpm} RPM";
             if (batt is { Present: true }) text += $"\nBattery {batt.Percent}% {(batt.Discharging ? $"{batt.Watts:0.0}W" : "")}";
             if (BatteryLog.TrayLine() is string line) text += "\n" + line;
             TrayIcon.Text = text.Length > 127 ? text[..127] : text;
@@ -242,6 +247,7 @@ namespace FwHelper
             try { GovernorControl.Shutdown(); } catch { }
             try { Telemetry.StopRecording(); } catch { }
             try { BatteryLog.Stop(); } catch { }
+            try { PowerModeWatcher.Stop(); } catch { }
         }
 
         public static void Exit()

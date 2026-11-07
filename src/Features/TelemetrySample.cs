@@ -35,7 +35,8 @@ namespace FwHelper.Features
         int? BatteryMinutes = null,
         double? GpuReqMhz = null,
         double? GpuMhz = null,
-        string? GpuThrottle = null)
+        string? GpuThrottle = null,
+        string? WinMode = null)
     {
         /// <summary>CSV columns. Readers map by name, so columns can be added at the end without breaking old sessions.</summary>
         public static readonly string[] Columns =
@@ -45,6 +46,7 @@ namespace FwHelper.Features
             "cpu_w", "gpu_w", "throttle",
             "dram_w", "freq_cap_mhz", "fps", "fps_app", "battery_min",
             "gpu_req_mhz", "gpu_mhz", "gpu_throttle",
+            "win_mode",
         };
 
         public static string CsvHeader => string.Join(",", Columns);
@@ -61,7 +63,7 @@ namespace FwHelper.Features
             Num(BatteryPct), Num(BatteryW, "0.0"), Num(PackageW, "0.0"), Num(PL1),
             Num(CpuW, "0.0"), Num(GpuW, "0.0"), Text(Throttle),
             Num(DramW, "0.0"), Num(FreqCapMHz), Num(Fps, "0"), Text(FpsApp), Num(BatteryMinutes),
-            Num(GpuReqMhz, "0"), Num(GpuMhz, "0"), Text(GpuThrottle));
+            Num(GpuReqMhz, "0"), Num(GpuMhz, "0"), Text(GpuThrottle), Text(WinMode));
 
         /// <summary>Column name → index for a header line; null if it isn't a FW-Helper session header.</summary>
         public static IReadOnlyDictionary<string, int>? Layout(string header)
@@ -91,7 +93,7 @@ namespace FwHelper.Features
                     D(F("battery_w")), D(F("package_w")), I(F("pl1_w")),
                     D(F("cpu_w")), D(F("gpu_w")), S(F("throttle")),
                     D(F("dram_w")), I(F("freq_cap_mhz")), D(F("fps")), S(F("fps_app")), I(F("battery_min")),
-                    D(F("gpu_req_mhz")), D(F("gpu_mhz")), S(F("gpu_throttle")));
+                    D(F("gpu_req_mhz")), D(F("gpu_mhz")), S(F("gpu_throttle")), S(F("win_mode")));
             }
             catch (FormatException)
             {

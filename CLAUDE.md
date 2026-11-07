@@ -27,12 +27,13 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 | [docs/feature-parity.md](docs/feature-parity.md) | Linux vs Windows comparison, and the roadmap |
 | [docs/hardware-test-plan.md](docs/hardware-test-plan.md) | **Every pending on-hardware check, bundled into one run.** Add new ones here instead of testing ad hoc |
 | [docs/references.md](docs/references.md) | External repos and specs we build on |
+| [docs/plan-benchmarks-and-game-profiles.md](docs/plan-benchmarks-and-game-profiles.md) | Proposed 2026-11-07: run summaries, compare projects, limiter analysis, game profiles, Windows power-mode visibility |
 | `README.md` | User-facing |
 | `CHANGELOG.md` | Per-version changes; release notes link here |
 
 ## Current state (2026-10-10)
 
-Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 211 unit tests pass. `publish/` is gitignored.
+Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 224 unit tests pass. `publish/` is gitignored.
 The user is running the battery monitor build from `publish\` (2026-10-11 09:53; it is the 0.3.0 code but reports 0.2.0). Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
@@ -63,7 +64,7 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
 | **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
 | CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
-| Unit tests | ✅ 211: battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 224: Windows power mode, battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -167,6 +168,8 @@ src/
     TelemetrySample.cs    one row + CSV format (readers map columns by header name; only append columns)
     SessionRecorder.cs    sessions\session-*.csv writer/loader, prune to 20, 12 h auto-stop
     PowerNative.cs        Windows power overlay (powrprof)
+    WindowsPowerMode.cs   pure: what each Windows power mode means here (budgets), in-step/mismatch, resync decision
+    PowerModeWatcher.cs   effective power mode notifications (no polling); keeps Windows in step with the profile
     BatteryControl.cs     charge limit persistence/reapply
     BatteryHistory.cs     pure battery maths: event intervals, day/month/year totals, roll-up, current session (ADR 0018)
     BatteryLog.cs         event-driven battery log: power notifications → EcoQoS thread → battery\events.csv + history.json;
@@ -241,6 +244,10 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
 - **The Monitor and Battery windows are resizable and zoomed.** Their layout is written for the old 720-wide window at 96 DPI and
   multiplied by `_zoom`, from 1 to 1.5×, in `S()`. New drawing code must use `S()` and fonts sized as `n * _zoom`, or it won't scale.
   Closing either window saves its size to the real config: in offscreen render tests, `Dispose()` the form instead of closing it.
+- **Mixed-DPI displays** (laptop panel 200 %, external 4K 150 % primary, seen 2026-11-06): a form's constructor sees the primary's
+  DPI, and Windows sends no DPI change when the window is then created on the other display. `RForm.OnHandleCreated` rescales the
+  bounds and applies the saved size exactly. Without it, windows came out 25 % too small, zoom fell to 1× and the shrunken size was saved.
+  To test a form at another DPI offscreen, call `SetThreadDpiAwarenessContext(-4)` on the STA thread and place it on that display.
 - A disabled `RButton` used to draw its text twice (fixed 2026-10-05 in `OnPaint`). The profile buttons are hidden rather than disabled anyway.
 - **Argument order in `Program.Main` matters:** `--guard`, then CLI verbs, then `--selftest`/`--hwtest`, then `CloseOtherInstances`.
   A new argument placed after `CloseOtherInstances` will kill the user's running app.

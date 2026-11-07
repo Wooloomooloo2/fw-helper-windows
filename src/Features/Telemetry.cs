@@ -169,7 +169,8 @@ namespace FwHelper.Features
                 batt is { Present: true, Discharging: true, RateMa: > 0 } b ? (int)(b.RemainingMah * 60L / b.RateMa) : null,
                 gpuClock?.RequestMhz,
                 gpuClock?.ActualMhz,
-                gpuClock?.ThrottleText);
+                gpuClock?.ThrottleText,
+                PowerModeWatcher.Status is var w && w.BatterySaver ? "Battery Saver" : WindowsPowerMode.Valid(w.Actual) ? WindowsPowerMode.Short[w.Actual] : null);
         }
 
         /// <summary>What is holding the CPU back right now: our governor and/or the EC (soft event, hard PROCHOT). "" if nothing.</summary>

@@ -53,6 +53,10 @@ tray app. Run them from `publish\`.
 | ☐ | Standby catch-up | Quit FW-Helper, close the lid for 15 min, open it, start FW-Helper | The log has `standby sessions read from the System log`, and the Battery window shows that session |
 | ☐ | Battery log: idle cost | Idle 10 min on battery with Monitor and overlay closed; measure FW-Helper `TotalProcessorTime` over it, and compare with 0.2.0 | No measurable difference. In Process Explorer, the `BatteryLog` thread shows EcoQoS/efficiency mode and has close to 0 cycles |
 | ☐ | Battery log: charge limit | With the charge limit at 80 %, leave it on AC until full | "Last charge" stops at about 80 %: this is also the 🟡 "actual charge stop" check |
+| ☐ | Windows power mode: shown | Switch between the three profiles. Then open Windows Settings → Power and pick another mode | The main window line shows the mode in effect and its budget. The log has `Windows power mode notifications: on`. With "Keep Windows in step" on, Windows' slider jumps back within about a second, a tray notification explains it, and the log has `changed to … outside FW-Helper → back to …` |
+| ☐ | Windows power mode: not in step | Untick "Keep Windows in step" (Fans + Power), then change the mode in Windows Settings | The main window line turns amber ("changed outside FW-Helper") with a **Fix** button that puts the profile's mode back. The tray tooltip and the overlay's PWR row show ⚠ |
+| ☐ | Windows power mode: Battery Saver | On battery, turn Battery Saver on, then off | While on: "Battery Saver is on" in amber, no Fix button, nothing put back. When it turns off, the profile's mode comes back (keep-in-step on) |
+| ☐ | Windows power mode: Game Mode | Start a game with Windows Game Mode on | The line ends with "· Game Mode" while the game has focus |
 | ☐ | Restore on quit and hard kill | With a power target binding: quit FW-Helper, then `powercfg /qh SCHEME_CURRENT SUB_PROCESSOR PROCFREQMAX`. Repeat with End task | Both times: `CPU frequency caps restored` (from the app or the guard) and PROCFREQMAX back to 0 |
 
 ## Results log

@@ -11,7 +11,8 @@ namespace FwHelper.UI
         private const int W = 420, M = 12, Inner = W - 2 * M;
 
         private readonly RButton[] _modeButtons = new RButton[Modes.BuiltInCount];
-        private readonly Label _modeHeader;
+        private readonly Label _modeHeader, _winMode;
+        private readonly RButton _winModeFix;
         private readonly ContextMenuStrip _profileMenu = new();
         private readonly RButton _fansButton;
         private readonly Label _sensorsLabel, _batteryLabel, _chargeLabel, _screenLabel, _kbLabel, _ledLabel, _footerLabel;
@@ -64,7 +65,17 @@ namespace FwHelper.UI
             _fansButton = MakeButton("Fans +\nPower", M + 3 * (bw + 8), y, bw, 64);
             _fansButton.Secondary = true;
             _fansButton.Click += (_, _) => ToggleFans();
-            y += 64 + 16;
+            y += 64 + 6;
+
+            // The Windows power mode actually in effect: it sets the CPU + GPU power budget, so it matters more than the profile name
+            _winMode = MakeLabel("", M, y + 3, Inner);
+            _winMode.Tag = "dim";
+            _winModeFix = MakeButton("Fix", M + Inner - 52, y, 52, 24);
+            _winModeFix.Visible = false;
+            _winModeFix.Click += (_, _) => PowerModeWatcher.Fix();
+            _tip.SetToolTip(_winModeFix, "Set Windows to the profile's power mode");
+            PowerModeWatcher.Changed += () => { if (IsHandleCreated) BeginInvoke(VisualiseWindowsMode); };
+            y += 24 + 12;
 
             // ---------- Battery ----------
             AddHeader("Battery", ref y, out _batteryLabel);
@@ -251,6 +262,25 @@ namespace FwHelper.UI
             _kbSlider.Invalidate();
             Icon = TrayIcons.ForMode(mode);
             FansForm?.OnModeChanged();
+            VisualiseWindowsMode();
+        }
+
+        private static readonly Color Warn = Color.FromArgb(214, 140, 0);
+
+        private void VisualiseWindowsMode()
+        {
+            var s = PowerModeWatcher.Status;
+            _winModeFix.Visible = s.CanFix;
+            _winMode.Width = s.CanFix ? Inner - _winModeFix.Width - 8 : Inner;
+            _winMode.Text = s.Line;
+            _winMode.ForeColor = s.Mismatch ? Warn : RForm.ForeDim;
+            _tip.SetToolTip(_winMode, s.Explanation + "\n\nThe profile sets this when you switch. Change it per profile in Fans + Power.");
+            for (int i = 0; i < Modes.BuiltInCount; i++)
+            {
+                int overlay = Modes.GetOverlay(i);
+                _tip.SetToolTip(_modeButtons[i], $"{Modes.Name(i)}: Windows {PowerNative.OverlayNames[overlay]}. {WindowsPowerMode.Explain[overlay]}");
+            }
+            FansForm?.VisualiseWindowsMode();
         }
 
         private void VisualiseScreen()
