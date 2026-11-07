@@ -7,7 +7,7 @@ namespace FwHelper.UI
     public class MonitorForm : RForm
     {
         // 96 DPI pixels. The window is resizable: cards share the client area, and their text grows with them (LineChart)
-        private const int M = 12, Gap = 10, ButtonW = 110, ButtonStep = 118, ButtonH = 32;
+        private const int M = 12, Gap = 10, ButtonW = 100, ButtonStep = 107, ButtonH = 32;
 
         private static readonly Color Cpu = RForm.Accent;
         private static readonly Color Gpu = Color.FromArgb(255, 150, 30);
@@ -18,7 +18,7 @@ namespace FwHelper.UI
         private readonly LineChart _load, _clock, _gpuClock, _power, _temp, _fan, _memory, _fps, _battery;
         private readonly LineChart[] _charts;
         private readonly Label _status;
-        private readonly RButton _record, _open, _live, _view, _summary;
+        private readonly RButton _record, _open, _live, _view, _summary, _compare;
         private IDisposable? _telemetry;
         private List<TelemetrySample>? _session;
         private string? _sessionName, _sessionPath;
@@ -38,6 +38,8 @@ namespace FwHelper.UI
             _view.Click += (_, _) => Program.ShowBattery();
             _summary = Button("Summary");
             _summary.Click += (_, _) => ShowSummary();
+            _compare = Button("Compare…");
+            _compare.Click += (_, _) => ShowCompare(null);
             _live = Button("Live");
             _open = Button("Open session…");
             _record = Button("● Record");
@@ -144,7 +146,7 @@ namespace FwHelper.UI
             int width = ClientSize.Width, m = P(M), gap = P(Gap), step = P(ButtonStep);
 
             // Visible buttons packed from the right ("Live" and "Summary" only show while a session is open)
-            var buttons = new[] { _view, _summary, _live, _open, _record }.Where(b => (b != _live && b != _summary) || _session is not null).ToArray();
+            var buttons = new[] { _view, _compare, _summary, _live, _open, _record }.Where(b => (b != _live && b != _summary) || _session is not null).ToArray();
             for (int i = 0; i < buttons.Length; i++)
                 buttons[i].SetBounds(width - m - (buttons.Length - i) * step + P(8), m, P(ButtonW), P(ButtonH));
             _status.SetBounds(m, m + P(7), Math.Max(0, width - 2 * m - buttons.Length * step), P(20));
@@ -230,14 +232,28 @@ namespace FwHelper.UI
                 MessageBox.Show(this, error, "Summary", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
+        /// <summary>The compare window, with a saved project, or else with the open session as its first run.</summary>
+        private void ShowCompare(string? project)
+        {
+            var form = new CompareForm(project is null && _sessionPath is not null ? new[] { _sessionPath } : null);
+            if (project is not null) form.LoadProject(project);
+            form.FormClosed += (_, _) => form.Dispose();
+            form.Show(this);
+        }
+
         private void OpenSession()
         {
             using var dialog = new OpenFileDialog
             {
                 InitialDirectory = Directory.Exists(SessionRecorder.Folder) ? SessionRecorder.Folder : Logger.AppDataDir,
-                Filter = "FW-Helper sessions and summaries|session-*.csv;session-*.html|CSV files (*.csv)|*.csv",
+                Filter = "FW-Helper sessions, summaries and compare projects|session-*.csv;session-*.html;*.json|CSV files (*.csv)|*.csv",
             };
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            if (dialog.FileName.EndsWith(CompareProject.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                ShowCompare(dialog.FileName);
+                return;
+            }
             try
             {
                 string csv = RunReport.CsvFor(dialog.FileName);

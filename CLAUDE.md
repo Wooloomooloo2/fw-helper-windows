@@ -33,7 +33,7 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-10)
 
-Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 256 unit tests pass. `publish/` is gitignored.
+Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 264 unit tests pass. `publish/` is gitignored.
 The user is running the battery monitor build from `publish\` (2026-10-11 09:53; it is the 0.3.0 code but reports 0.2.0). Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
@@ -64,7 +64,7 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
 | **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
 | CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
-| Unit tests | ✅ 256: screen guard, CPU boost off, run summary + report, Windows power mode, battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 264: compare runs, screen guard, CPU boost off, run summary + report, Windows power mode, battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -170,6 +170,8 @@ src/
     SessionRecorder.cs    Documents\FW Benchmark\session-*.csv writer/loader, no pruning, 12 h auto-stop
     RunSummary.cs         pure: a run's steady seconds (game presenting, 10 s trim, menus left out), stats, limit shares, warnings
     SummaryReport.cs      pure: self-contained HTML report of one run (session-*.html next to the CSV, embedded JSON, hover readout)
+    CompareProject.cs     compare project (runs + baseline) as Documents\FW Benchmark\projects\<name>.json; pure
+    CompareReport.cs      pure: HTML comparison of several runs against a baseline (static SVG bars, what differs, warnings, conclusions)
     PowerNative.cs        Windows power overlay (powrprof)
     WindowsPowerMode.cs   pure: what each Windows power mode means here (budgets), in-step/mismatch, resync decision
     PowerModeWatcher.cs   effective power mode notifications (no polling); keeps Windows in step with the profile
@@ -180,7 +182,7 @@ src/
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
   Helpers/                AppConfig (JSON), Logger, EcoQos (per-thread efficiency mode), Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest),
                           Cli + CommandProtocol (pure) + CommandServer (named pipe, runs commands on the UI thread)
-  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, RunReport (writes + opens a summary), BatteryForm + BatteryPanel, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
+  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, RunReport (writes + opens a summary), CompareForm + CompareRunner (compare projects), BatteryForm + BatteryPanel, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
                           RForm/RButton/Slider (G-Helper), ScreenGuard (pure: windows stay reachable), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit, no hardware: FakeFan (fake EC) drives FanLoop; never touches AppConfig

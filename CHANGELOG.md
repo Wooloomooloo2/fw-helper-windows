@@ -53,6 +53,23 @@
   (`session-20261107-140512 Cyberpunk 1080p medium.csv`) and becomes the summary's title label. Cancel doesn't record.
 - A file renamed after its timestamp (`session-20261104-172058cyber_punk_bal.csv`) uses the extra text as the run's label.
 
+### Compare runs
+- **Monitor → Compare…** puts several recordings side by side. Add runs (pick several at once), name each one, and
+  choose the baseline with its round button. **Save and open report** saves the project to
+  `Documents\FW Benchmark\projects\<name>.json` and opens `<name>.html` in the browser. Pick the project from the list,
+  or open its `.json` from Open session…, to add runs or remake the report. When a session is open in the Monitor,
+  Compare… starts with it.
+- **The report:**
+  - tiles for the fastest run (and its gain over the baseline), what held its GPU clock, and the most efficient run;
+  - a line per run with the numbers ("+20 % FPS (43 → 51), +5.5 W package, FPS per watt −2 %");
+  - bars for median and 5th-percentile FPS, the CPU/GPU/rest watts against each run's PL1, and FPS per watt;
+  - **What differs:** a table of only the recorded settings that differ (profile, Windows mode, fan, power source, CPU boost,
+    power target, CPU cap), with changes from the baseline highlighted;
+  - a run-by-run table with the change from the baseline.
+- It warns when runs don't compare: different games, AC against battery, very different lengths, runs under 60 s, or
+  recordings from different days (firmware or drivers may have changed in between).
+- Each run uses the same steady seconds as its run summary.
+
 ### Windows on two displays at different scales
 - Windows opened on a display with a different scale from the main one (the laptop panel at 200 % next to an external screen at
   150 %) came out 25 % too small, and the Monitor and Battery windows then saved the smaller size each time. Windows now rescale

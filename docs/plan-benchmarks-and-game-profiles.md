@@ -90,7 +90,7 @@ one reported.
 3. **Benchmark run (repeatable):** a fixed warm-up (for example 15 s, not counted), then a fixed length (60/120/180 s), then it
    stops by itself. This fixes the problem from the firmware A/B, where one Cyberpunk run lasted 80 s and another 190 s, so
    their 5th percentiles couldn't be compared.
-4. **Auto-record (optional, off by default):** start when a game begins presenting frames (the FPS process detection we
+4. **Auto-record (optional, off by default, confirmed 2026-11-07):** start when a game begins presenting frames (the FPS process detection we
    already have). Stop when it exits. Ignore anything under 30 s.
 5. **Run context:** a sidecar file `session-*.json`, written at start and finished at stop. It holds:
    - the game's exe and window title, start and end, and the warm-up/benchmark window;
@@ -259,7 +259,7 @@ Suggested order: **0 → 1 → 2 + 4 together → 3 → 5**. Each phase ships on
 2. **Hotkey:** Ctrl+Shift+F6 starts and stops recording.
 3. **Keep Windows in step with the profile:** on by default. **Built in Phase 0** (see the CHANGELOG).
 4. **Auto-switch game profiles:** on by default for bound games.
-5. **Auto-record when a game starts:** on by default. (Read from "yes by default"; to be confirmed.)
+5. **Auto-record when a game starts:** off by default (confirmed by the user 2026-11-07).
 
 ## Phase 0 as built (2026-11-07)
 
@@ -299,6 +299,30 @@ Built first because it works on the recordings that already exist.
 - Waiting on Phase 1: 1 % and 0.1 % lows (need per-frame times), the run-context sidecar (fan curve, limits, firmware,
   free-text label).
 - Waiting on Phase 4: the main-limiter tile and suggestions. The report says a diagnosis comes later.
+
+## Phase 3 as built (2026-11-07), ahead of Phase 1
+
+Built next because the user can test it at once on the firmware A/B recordings.
+- `CompareProject` (pure): name, baseline index and runs (recording + short name), saved as
+  `Documents\FW Benchmark\projects\<name>.json`. Recordings in the sessions folder are stored by file name, others by full path.
+  A new run is named after its recording's name, or else its game, profile and start time.
+- `CompareReport` (pure, `CompareTests`): one self-contained HTML file, `<name>.html` next to the project. Its charts are
+  static SVG with hover titles, so it has no script.
+  - Tiles: the fastest run and its gain, what held its GPU clock (baseline → fastest), the most efficient run.
+  - Conclusions: a line per run against the baseline with the numbers, then the fastest and the most efficient.
+  - Bars: median FPS with the 5th-percentile second under it, CPU/GPU/rest watts with each run's PL1, FPS per watt.
+  - **What differs:** only the recorded settings that differ (game, profile, Windows mode, fan, power source, CPU boost, power
+    target, CPU cap), with cells that differ from the baseline highlighted, and a line listing what's the same.
+  - Warnings: different games, AC against battery, steady lengths more than 2× apart, runs under 60 s, different days, and each
+    run's own warnings (said once when every run has the same one).
+- `CompareForm`, from **Monitor → Compare…**:
+  - project list;
+  - one row per run, with a baseline radio button, the name, game/length/FPS and remove;
+  - **Add runs…** (multi-select; reports work too);
+  - **Save and open report**.
+  Open session… also opens a project `.json`.
+- Not done: "Add to project…" when a recording starts (comes with Phase 1); run contexts (fan curve, firmware, in-game settings)
+  for What differs (Phase 1 sidecar); conclusions by the Phase 4 rules; 1 % lows (Phase 1 frames).
 
 ## Constraints carried over
 
