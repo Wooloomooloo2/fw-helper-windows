@@ -14,6 +14,15 @@
 - The governor starts afresh on every profile switch, so a Balanced profile no longer inherits the previous profile's cap for
   half a minute. While a cap is being raised, its status says "easing off".
 
+### CPU boost off (ADR 0016, 3rd amendment)
+- New per-profile switch in Fans + Power: **CPU boost off**. It sets Windows' "Maximum processor state" to 99 %, which turns
+  turbo off (about 1.8 GHz). It is the one CPU limit Windows still obeys in **Performance**, so in GPU-bound games the
+  watts the CPU gives up can go to the GPU. CPU-heavy games may lose FPS, so it's per profile and off by default.
+- Your own power-plan value is restored when you switch to a profile without it, quit, crash (at the next start) or end the task
+  (the guard).
+- The main window, the overlay's PWR row, recordings (`cpu_boost_off`) and run summaries show when it is on.
+- Not yet measured in a game: see the hardware test plan.
+
 ### Windows power mode, made visible
 - The Windows power mode sets the sustained power budget the CPU and GPU share (about 15 W in Efficiency, 25 W in Balanced and
   30–33 W in Performance on BIOS 03.04). It matters more than the profile's name. The main window now shows the mode in effect,
@@ -25,10 +34,36 @@
 - Fans + Power explains each power mode under its buttons. The tray tooltip, the overlay (new PWR row) and recordings (new
   `win_mode` column) show the Windows mode too.
 
+### Run summaries
+- A recorded session can now be summarised. **Monitor → Open session… → Summary** writes a report next to the CSV
+  (`session-*.html`) and opens it in the browser. When a recording stops, a tray notification offers the same.
+- The report covers only the seconds in which the game was presenting frames. It skips the first 10 s and leaves out menus and
+  loading screens, and says which seconds it used.
+- **Tiles:** median and 5th-percentile FPS, package watts split into CPU, GPU and the rest, FPS per watt, what held the GPU
+  clock back, the GPU clock and the CPU temperature.
+- **Charts:** second-by-second charts in which hovering shows every reading at that second, and where the run's watts went
+  against the PL1 for its Windows power mode.
+- **Tables:** every reading's average, median, 5th percentile, min and max.
+- It warns about runs that are hard to compare: too short, partly on battery, or with the profile or Windows mode changed
+  part-way through.
+- The report is one file that works offline and can be kept or shared. Open session… also accepts a report and opens its
+  recording.
+- **Name a recording when it starts:** Monitor → Record asks for an optional name (game, settings, what you changed). It
+  suggests the game that's running and the profile. The name goes into the file name
+  (`session-20261107-140512 Cyberpunk 1080p medium.csv`) and becomes the summary's title label. Cancel doesn't record.
+- A file renamed after its timestamp (`session-20261104-172058cyber_punk_bal.csv`) uses the extra text as the run's label.
+
 ### Windows on two displays at different scales
 - Windows opened on a display with a different scale from the main one (the laptop panel at 200 % next to an external screen at
   150 %) came out 25 % too small, and the Monitor and Battery windows then saved the smaller size each time. Windows now rescale
   when they open, and open at exactly their saved size.
+- Unplugging the external screen could leave a FW-Helper window stranded. Windows minimises the windows that were on that
+  screen, and they came back at their old position on a screen that no longer exists. Fans + Power has no taskbar button, so it
+  stayed minimised for good.
+- Now, after any display change, FW-Helper un-minimises windows that have no taskbar button. It brings back any window whose title
+  bar isn't on a screen, and the main window restores before moving to the tray corner.
+- Fans + Power opens beside the main window on the same screen, also when that screen is left of the main one. The overlay
+  keeps its position on such a screen too.
 
 ### Keyboard backlight state
 - Under the Keyboard slider, a line shows what the EC is actually doing: on or off, its level, and the ambient light in lux.

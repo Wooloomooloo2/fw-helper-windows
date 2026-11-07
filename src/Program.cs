@@ -91,10 +91,14 @@ namespace FwHelper
             ApplyAll();
             BatteryLog.Start();
             PowerModeWatcher.Resynced += (had, restored) => SettingsForm.BeginInvoke(() =>
-                TrayIcon.ShowBalloonTip(5000, "Windows power mode put back",
+                Balloon(null, "Windows power mode put back",
                     $"Windows switched to {had}. The profile {Modes.Name(ModeControl.CurrentMode)} uses {restored}, so FW-Helper put it back. " +
                     "To let Windows' setting win, untick \"Keep Windows in step\" in Fans + Power.", ToolTipIcon.Info));
             PowerModeWatcher.Start();
+            TrayIcon.BalloonTipClicked += (_, _) => { var action = _balloonAction; _balloonAction = null; action?.Invoke(); };
+            Telemetry.RecordingStopped += (path, rows) => { if (rows >= 10 && !IsExiting) SettingsForm.BeginInvoke(() =>
+                Balloon(() => RunReport.Open(path), "Recording saved",
+                    $"{Path.GetFileName(path)}, {rows / 60} min {rows % 60:00} s. Click here for its summary.", ToolTipIcon.Info)); };
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
             SystemEvents.SessionEnding += (_, _) => SafeShutdown();
@@ -204,6 +208,15 @@ namespace FwHelper
             _overlay.Show();
         }
 
+        private static Action? _balloonAction;
+
+        /// <summary>A tray balloon; <paramref name="onClick"/> runs if it is clicked (only the latest balloon's action is kept).</summary>
+        private static void Balloon(Action? onClick, string title, string text, ToolTipIcon icon)
+        {
+            _balloonAction = onClick;
+            TrayIcon.ShowBalloonTip(5000, title, text, icon);
+        }
+
         private static MonitorForm? _monitor;
 
         public static void ShowMonitor()
@@ -215,6 +228,7 @@ namespace FwHelper
             }
             _monitor.Show();
             if (_monitor.WindowState == FormWindowState.Minimized) _monitor.WindowState = FormWindowState.Normal;
+            _monitor.KeepOnScreen();
             _monitor.Activate();
         }
 
@@ -229,6 +243,7 @@ namespace FwHelper
             }
             _battery.Show();
             if (_battery.WindowState == FormWindowState.Minimized) _battery.WindowState = FormWindowState.Normal;
+            _battery.KeepOnScreen();
             _battery.Activate();
         }
 

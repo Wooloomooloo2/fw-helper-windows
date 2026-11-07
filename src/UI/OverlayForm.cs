@@ -38,9 +38,10 @@ namespace FwHelper.UI
             DoubleBuffered = true;
             ClientSize = new Size(10, 10);
 
-            int x = AppConfig.Get("overlay_x", -1), y = AppConfig.Get("overlay_y", -1);
+            int x = AppConfig.Get("overlay_x", int.MinValue), y = AppConfig.Get("overlay_y", int.MinValue);
             var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 800, 600);
-            Location = x >= 0 && y >= 0 && SystemInformation.VirtualScreen.Contains(x, y) ? new Point(x, y) : new Point(area.Left + 16, area.Top + 16);
+            // Any screen counts, including one at negative coordinates (left of or above the primary)
+            Location = Screen.AllScreens.Any(s => s.WorkingArea.Contains(x + 20, y + 10)) ? new Point(x, y) : new Point(area.Left + 16, area.Top + 16);
 
             MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) _dragFrom = e.Location; };
             MouseMove += (_, e) => { if (e.Button == MouseButtons.Left) Location = new Point(Left + e.X - _dragFrom.X, Top + e.Y - _dragFrom.Y); };
@@ -143,7 +144,7 @@ namespace FwHelper.UI
             string pkg = s.PackageW is double p ? $"{p:0.0} W / {limit} W ({p / limit * 100:0}%)" : "– W";
             if (s.FreqCapMHz is int cap) pkg += $"  cap {cap / 1000.0:0.0} GHz";
             rows.Add(new("PKG", pkg));
-            if (power is not null) rows.Add(new("PWR", $"{s.Mode} · Windows {power.ShortLabel}"));
+            if (power is not null) rows.Add(new("PWR", $"{s.Mode} · Windows {power.ShortLabel}" + (s.BoostOff ? " · boost off" : "")));
 
             rows.Add(new("RAM", s.MemTotalGb > 0 ? $"{s.MemUsedGb / s.MemTotalGb * 100:0}%  ({s.MemUsedGb:0.0} / {s.MemTotalGb:0} GB)" : "–"));
 

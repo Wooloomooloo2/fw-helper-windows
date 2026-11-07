@@ -59,12 +59,14 @@ namespace FwHelper.Features
         public static void Init()
         {
             RestoreSavedCaps("left over from a previous run");
+            CpuBoost.Restore("left over from a previous run");
             if (TempCap() is null || !IsBackstopEnabled()) EcBackstop.Restore();
         }
 
         /// <summary>Apply the current profile's targets and the global cap (startup, mode change, resume, settings change).</summary>
         public static void Apply()
         {
+            CpuBoost.Apply();
             var targets = Targets();
             var temp = targets.TempC;
 
@@ -95,6 +97,7 @@ namespace FwHelper.Features
         {
             try { _governor?.Stop(); } catch { }
             RestoreSavedCaps(null);
+            try { CpuBoost.Restore(null); } catch { }
             try { EcBackstop.Restore(); } catch { }
         }
 

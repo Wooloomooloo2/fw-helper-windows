@@ -66,8 +66,9 @@ namespace FwHelper.Tests
             Assert.Equal(s, TelemetrySample.FromCsv(s.ToCsv()));
 
             // A 0.3.0 session has no gpu_* columns: they load as null
-            var oldHeader = string.Join(",", TelemetrySample.Columns.Take(TelemetrySample.Columns.Length - 3));
-            var oldRow = string.Join(",", s.ToCsv().Split(',').Take(TelemetrySample.Columns.Length - 3));
+            int gpuFirst = Array.IndexOf(TelemetrySample.Columns, "gpu_req_mhz");
+            var oldHeader = string.Join(",", TelemetrySample.Columns.Take(gpuFirst));
+            var oldRow = string.Join(",", s.ToCsv().Split(',').Take(gpuFirst));
             var loaded = TelemetrySample.FromCsv(oldRow, TelemetrySample.Layout(oldHeader));
             Assert.NotNull(loaded);
             Assert.Null(loaded!.GpuMhz);

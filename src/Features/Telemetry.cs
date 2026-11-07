@@ -29,6 +29,8 @@ namespace FwHelper.Features
         public static event Action<TelemetrySample>? Sampled;
         /// <summary>Raised when recording starts or stops (any thread).</summary>
         public static event Action? RecordingChanged;
+        /// <summary>A recording finished: its CSV path and row count.</summary>
+        public static event Action<string, int>? RecordingStopped;
 
         public static bool IsRecording => _recorder is not null;
         public static string? RecordingFile => _recorder?.FilePath;
@@ -75,12 +77,12 @@ namespace FwHelper.Features
 
         private static IDisposable? _recordingUse;
 
-        public static void StartRecording()
+        public static void StartRecording(string? name = null)
         {
             lock (_lock)
             {
                 if (_recorder is not null) return;
-                try { _recorder = new SessionRecorder(); }
+                try { _recorder = new SessionRecorder(name); }
                 catch (Exception ex) { Logger.WriteLine("Can't start recording: " + ex.Message); return; }
             }
             _recordingUse = Use();
@@ -89,15 +91,18 @@ namespace FwHelper.Features
 
         public static void StopRecording()
         {
+            (string Path, int Rows)? stopped = null;
             lock (_lock)
             {
                 if (_recorder is null) return;
+                stopped = (_recorder.FilePath, _recorder.Rows);
                 _recorder.Dispose();
                 _recorder = null;
             }
             _recordingUse?.Dispose();
             _recordingUse = null;
             RecordingChanged?.Invoke();
+            if (stopped is var (path, rows)) RecordingStopped?.Invoke(path, rows);
         }
 
         private static void Tick()
@@ -170,7 +175,8 @@ namespace FwHelper.Features
                 gpuClock?.RequestMhz,
                 gpuClock?.ActualMhz,
                 gpuClock?.ThrottleText,
-                PowerModeWatcher.Status is var w && w.BatterySaver ? "Battery Saver" : WindowsPowerMode.Valid(w.Actual) ? WindowsPowerMode.Short[w.Actual] : null);
+                PowerModeWatcher.Status is var w && w.BatterySaver ? "Battery Saver" : WindowsPowerMode.Valid(w.Actual) ? WindowsPowerMode.Short[w.Actual] : null,
+                CpuBoost.Active);
         }
 
         /// <summary>What is holding the CPU back right now: our governor and/or the EC (soft event, hard PROCHOT). "" if nothing.</summary>

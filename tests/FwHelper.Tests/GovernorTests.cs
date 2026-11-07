@@ -500,7 +500,7 @@ namespace FwHelper.Tests
         {
             var s = new TelemetrySample(new DateTime(2026, 10, 5, 1, 2, 3), "Turbo", false, 50, 3000, 20, "3D", 1, 10, 32,
                 80, 35, 45, 50, 4000, 60, "curve", 90, 21.5, 30.5, 25, 22.1, 6.4, "governor: 2400 MHz cap · EC: soft",
-                1.2, 2400, 144, "game", 95, 1900, 1850, "power", "Performance");
+                1.2, 2400, 144, "game", 95, 1900, 1850, "power", "Performance", true);
             Assert.Equal(s, TelemetrySample.FromCsv(s.ToCsv()));
         }
     }
@@ -513,6 +513,7 @@ namespace FwHelper.Tests
             Assert.Contains("No effect in Performance", FwHelper.UI.FansForm.LimitsNote(2));
             Assert.DoesNotContain("No effect", FwHelper.UI.FansForm.LimitsNote(1));
             Assert.DoesNotContain("No effect", FwHelper.UI.FansForm.LimitsNote(0));
+            Assert.Contains("CPU boost off", FwHelper.UI.FansForm.LimitsNote(2)); // the one CPU limit that still works there
         }
     }
 }

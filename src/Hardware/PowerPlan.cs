@@ -68,6 +68,41 @@ namespace FwHelper.Hardware
             return PowerSetActiveScheme(IntPtr.Zero, ref scheme) == 0 && ok;
         }
 
+        // ---------- Maximum processor state (CPU boost off, ADR 0016 3rd amendment) ----------
+
+        private static readonly Guid ProcThrottleMax = new("bc5038f7-23e0-4960-96da-33abaf5935ec");   // efficiency class 0, %
+        private static readonly Guid ProcThrottleMax1 = new("bc5038f7-23e0-4960-96da-33abaf5935ed");  // efficiency class 1, %
+
+        /// <summary>
+        /// "Maximum processor state" (%), AC/DC for both core classes, in the same 4-value shape as the frequency caps. Unlike
+        /// PROCFREQMAX it binds under the Best Performance overlay too, and below 100 % it turns turbo off (99 % ≈ 1.8 GHz, measured
+        /// 2026-11-06). Writable without admin.
+        /// </summary>
+        public static FrequencyCaps? ReadMaxState() => Read4(ProcThrottleMax, ProcThrottleMax1);
+        public static bool WriteMaxState(FrequencyCaps values) => Write4(ProcThrottleMax, ProcThrottleMax1, values);
+
+        private static FrequencyCaps? Read4(Guid g0, Guid g1)
+        {
+            if (ActiveScheme() is not Guid scheme) return null;
+            var sub = SubProcessor;
+            if (PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g0, out uint ac0) != 0) return null;
+            PowerReadDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g0, out uint dc0);
+            PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g1, out uint ac1);
+            PowerReadDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g1, out uint dc1);
+            return new FrequencyCaps(ac0, dc0, ac1, dc1);
+        }
+
+        private static bool Write4(Guid g0, Guid g1, FrequencyCaps v)
+        {
+            if (ActiveScheme() is not Guid scheme) return false;
+            var sub = SubProcessor;
+            bool ok = PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g0, v.Ac0) == 0
+                    & PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g0, v.Dc0) == 0
+                    & PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g1, v.Ac1) == 0
+                    & PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref g1, v.Dc1) == 0;
+            return PowerSetActiveScheme(IntPtr.Zero, ref scheme) == 0 && ok;
+        }
+
         // ---------- Sleep after, on battery (ADR 0018) ----------
 
         private static readonly Guid SubSleep = new("238c9fa8-0aad-41ed-83f4-97be242c8f20");

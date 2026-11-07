@@ -63,7 +63,7 @@ namespace FwHelper.Features
 
         /// <summary>Per-profile keys copied when a profile is duplicated and removed when it's deleted.</summary>
         // pl_custom/pl1/pl2 are PawnIO-era keys (ADR 0016): no longer used, still cleaned up on delete
-        private static readonly string[] ProfileKeys = { "overlay", "fan_custom", "fan_curve", "power_target", "cpu_power_target", "cpu_max_mhz", "name", "base", "pl_custom", "pl1", "pl2" };
+        private static readonly string[] ProfileKeys = { "overlay", "fan_custom", "fan_curve", "power_target", "cpu_power_target", "cpu_max_mhz", "cpu_boost_off", "name", "base", "pl_custom", "pl1", "pl2" };
 
         public static bool IsBuiltIn(int mode) => mode is >= 0 and < BuiltInCount;
 

@@ -196,6 +196,19 @@ run's diagnosis is the share of seconds in each state, so "GPU power-limited 78 
 - No suggestion may need admin (hard rule 7). The "CPU boost off" option from the ADR 0016 discussion comes in here, as a
   per-profile switch.
 
+**A goal for each power source** (the user's idea, 2026-11-07). The best profile for a game on mains isn't the best on battery,
+so each suggestion is made against a goal:
+- **On mains: performance.** Rank changes by FPS (median and 1 % low), and accept more watts and fan noise for them. An example:
+  "Performance mode, +11 % FPS for +6 W".
+- **On battery: battery life.** Rank changes by **FPS per watt** and by the hours the battery would last (system watts from
+  `battery_w`), while keeping the game playable. Playable means a target the user sets per game, with a default of 30 FPS
+  median and a 1 % low over 20. Example suggestions:
+  - "Balanced + CPU boost off: 31 FPS at 14 W, about 4 h 20 min, against 38 FPS at 22 W, about 2 h 50 min";
+  - "Cap the frame rate at 30: the GPU drops to 9 W".
+- A run's goal follows how it was recorded (AC or battery). The report names the goal. A project can compare runs from both, but
+  a comparability warning keeps AC and battery runs apart.
+- Suggestions on battery may lower settings that suggestions on mains never touch: Efficiency mode, a lower FPS cap, 60 Hz.
+
 The thresholds are starting values, tuned against the A/B sessions we already have. Those sessions become the unit-test
 fixtures: HZD must come out "CPU-starved" on 03.02, and Cyberpunk must come out "GPU power-limited" on 03.04.
 
@@ -214,8 +227,13 @@ fixtures: HZD must come out "CPU-starved" on 03.02, and Cyberpunk must come out 
    - Detection uses process start/stop events (WMI `Win32_ProcessStartTrace` needs admin, so we can't use it). Use the FPS
      process detection while telemetry runs, plus a cheap foreground-window hook (`SetWinEventHook` EVENT_SYSTEM_FOREGROUND,
      event-driven, no polling) at other times.
-4. **On battery:** game profiles apply only on AC by default (an option per profile), because the AC/DC profile memory already
-   exists and a Performance game profile on battery would surprise.
+4. **A pair of profiles for each game, one for mains and one for battery** (the user's idea, 2026-11-07). A game binds to two
+   profiles: "Cyberpunk · AC" (performance goal) and "Cyberpunk · battery" (battery-life goal). FW-Helper switches between them
+   when the charger is plugged in or out mid-game, the same way the AC/DC profile memory already works.
+   - Either one can be left empty. With no battery profile, the normal battery profile stays.
+   - "Save as profile for this game" fills the slot that matches the run's power source.
+   - Every per-profile setting comes along by itself: Windows mode, fan curve, limits and **CPU boost off** (built 2026-11-07). So a
+     game where boost off helps gets it, and a CPU-heavy game doesn't.
 
 ---
 
@@ -251,6 +269,36 @@ Suggested order: **0 → 1 → 2 + 4 together → 3 → 5**. Each phase ships on
 - Fans + Power: an explanation under the mode buttons, "Keep Windows in step", "Windows now: …".
 - Tray tooltip, overlay PWR row, CSV column `win_mode`.
 - Not done: a second line on the profile buttons themselves (the tooltip and the line cover it).
+
+## Phase 2 as built (2026-11-07), ahead of Phase 1
+
+Built first because it works on the recordings that already exist.
+- `RunSummary` (pure, `RunSummaryTests`), which works out the steady seconds:
+  - the game is the process that presented frames for the most seconds;
+  - the first 10 s are trimmed;
+  - seconds above 2× the median FPS are left out as menus or loading screens.
+- From those seconds it computes:
+  - min, average, median, 5th percentile and max for every column;
+  - the shares of the GPU and EC throttle reasons and of the profile and Windows mode;
+  - warnings: a short run, battery, a mode change, Battery Saver, or the Windows mode not recorded.
+- The label comes from a renamed file (`session-…cyber_punk_bal.csv` → "cyber punk bal").
+- Checked against the A/B sessions: medians and watts match hardware-baseline.md within about 1 FPS and 0.5 W.
+- `SummaryReport` (pure) writes a self-contained HTML file with system fonts and embedded JSON:
+  - header, warnings and 6 tiles;
+  - 8 time charts with a shared crosshair, a readout of every value at the hovered second, keyboard arrows and touch; the
+    seconds that don't count are shaded;
+  - the CPU/GPU/rest split against PL1 for the Windows mode;
+  - the GPU throttle reasons explained, and a table of every reading.
+- The report is written as `session-*.html` next to the CSV and opened in the default browser. Its meta tag `fwhelper-session`
+  names the CSV, so **Monitor → Open session…** also accepts a report and opens its recording.
+- Where it opens from:
+  - **Monitor → Summary** (shown while a session is open);
+  - the tray balloon "Recording saved · click for its summary" when a recording of 10 s or more stops.
+- Monitor → Record asks for an optional name, which goes into the file name (`SessionRecorder.FileName`) and comes back as the label.
+  Phase 1's hotkey start can't prompt in a game: it will take the name afterwards (the summary or the sidecar's label).
+- Waiting on Phase 1: 1 % and 0.1 % lows (need per-frame times), the run-context sidecar (fan curve, limits, firmware,
+  free-text label).
+- Waiting on Phase 4: the main-limiter tile and suggestions. The report says a diagnosis comes later.
 
 ## Constraints carried over
 

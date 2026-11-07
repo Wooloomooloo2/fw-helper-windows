@@ -75,6 +75,7 @@ namespace FwHelper.UI
             _winModeFix.Click += (_, _) => PowerModeWatcher.Fix();
             _tip.SetToolTip(_winModeFix, "Set Windows to the profile's power mode");
             PowerModeWatcher.Changed += () => { if (IsHandleCreated) BeginInvoke(VisualiseWindowsMode); };
+            CpuBoost.Changed += () => { if (IsHandleCreated) BeginInvoke(VisualiseWindowsMode); };
             y += 24 + 12;
 
             // ---------- Battery ----------
@@ -272,7 +273,7 @@ namespace FwHelper.UI
             var s = PowerModeWatcher.Status;
             _winModeFix.Visible = s.CanFix;
             _winMode.Width = s.CanFix ? Inner - _winModeFix.Width - 8 : Inner;
-            _winMode.Text = s.Line;
+            _winMode.Text = s.Line + (CpuBoost.Active ? " · CPU boost off" : "");
             _winMode.ForeColor = s.Mismatch ? Warn : RForm.ForeDim;
             _tip.SetToolTip(_winMode, s.Explanation + "\n\nThe profile sets this when you switch. Change it per profile in Fans + Power.");
             for (int i = 0; i < Modes.BuiltInCount; i++)
@@ -354,7 +355,10 @@ namespace FwHelper.UI
             }
             if (FansForm.Visible) { FansForm.Close(); return; }
             FansForm.Show();
-            FansForm.Location = new Point(Math.Max(0, Left - FansForm.Width - 10), Math.Max(0, Bottom - FansForm.Height));
+            // To the left of the main window, on the same screen (which can sit at negative coordinates)
+            var area = Screen.FromControl(this).WorkingArea;
+            FansForm.Location = new Point(Math.Max(area.Left, Left - FansForm.Width - 10), Math.Max(area.Top, Bottom - FansForm.Height));
+            FansForm.KeepOnScreen();
             FansForm.Activate();
         }
 
@@ -363,10 +367,12 @@ namespace FwHelper.UI
         public void ShowAtTray()
         {
             InitState();
+            // Restore first: a window Windows minimised when a screen was unplugged would otherwise come back at its old
+            // position, on the screen that's gone, and setting Location while minimised doesn't move it
+            if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
             var area = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromControl(this).WorkingArea;
             Location = new Point(area.Right - Width - 10, area.Bottom - Height - 10);
             Show();
-            WindowState = FormWindowState.Normal;
             Activate();
         }
 

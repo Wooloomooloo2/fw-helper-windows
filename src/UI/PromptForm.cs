@@ -8,7 +8,7 @@ namespace FwHelper.UI
         private const int W = 320, M = 12;
         private readonly TextBox _text;
 
-        private PromptForm(string title, string label, string value)
+        private PromptForm(string title, string label, string value, int maxLength)
         {
             SuspendLayout();
             Text = title;
@@ -23,7 +23,7 @@ namespace FwHelper.UI
             _text = new TextBox
             {
                 Text = value,
-                MaxLength = ProfileList.MaxNameLength,
+                MaxLength = maxLength,
                 Location = new Point(M, y),
                 Size = new Size(W - 2 * M, 24),
                 BorderStyle = BorderStyle.FixedSingle,
@@ -57,8 +57,15 @@ namespace FwHelper.UI
         /// <summary>The cleaned text, or null if cancelled or empty.</summary>
         public static string? Ask(IWin32Window owner, string title, string label, string value)
         {
-            using var form = new PromptForm(title, label, value);
+            using var form = new PromptForm(title, label, value, ProfileList.MaxNameLength);
             return form.ShowDialog(owner) == DialogResult.OK ? ProfileList.CleanName(form._text.Text) : null;
+        }
+
+        /// <summary>The raw text, which may be empty; null only if cancelled.</summary>
+        public static string? AskOptional(IWin32Window owner, string title, string label, string value, int maxLength)
+        {
+            using var form = new PromptForm(title, label, value, maxLength);
+            return form.ShowDialog(owner) == DialogResult.OK ? form._text.Text : null;
         }
     }
 }

@@ -63,6 +63,7 @@ namespace FwHelper.Helpers
 
             // A clean exit already did these (then they're no-ops); after a hard kill they undo the governor and backstop (ADR 0016)
             try { Features.GovernorControl.RestoreSavedCaps("guard"); } catch (Exception ex) { Logger.WriteLine("Guard: caps " + ex.Message); }
+            try { Features.CpuBoost.Restore("guard"); } catch (Exception ex) { Logger.WriteLine("Guard: boost " + ex.Message); }
             try { Features.EcBackstop.Restore(); } catch (Exception ex) { Logger.WriteLine("Guard: backstop " + ex.Message); }
         }
     }

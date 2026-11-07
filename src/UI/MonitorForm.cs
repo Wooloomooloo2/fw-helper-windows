@@ -18,10 +18,10 @@ namespace FwHelper.UI
         private readonly LineChart _load, _clock, _gpuClock, _power, _temp, _fan, _memory, _fps, _battery;
         private readonly LineChart[] _charts;
         private readonly Label _status;
-        private readonly RButton _record, _open, _live, _view;
+        private readonly RButton _record, _open, _live, _view, _summary;
         private IDisposable? _telemetry;
         private List<TelemetrySample>? _session;
-        private string? _sessionName;
+        private string? _sessionName, _sessionPath;
 
         public MonitorForm()
         {
@@ -36,12 +36,14 @@ namespace FwHelper.UI
             Controls.Add(_status);
             _view = Button("Battery");
             _view.Click += (_, _) => Program.ShowBattery();
+            _summary = Button("Summary");
+            _summary.Click += (_, _) => ShowSummary();
             _live = Button("Live");
             _open = Button("Open session…");
             _record = Button("● Record");
-            _live.Click += (_, _) => { _session = null; _sessionName = null; Redraw(); };
+            _live.Click += (_, _) => { _session = null; _sessionName = _sessionPath = null; Redraw(); };
             _open.Click += (_, _) => OpenSession();
-            _record.Click += (_, _) => { if (Telemetry.IsRecording) Telemetry.StopRecording(); else Telemetry.StartRecording(); };
+            _record.Click += (_, _) => { if (Telemetry.IsRecording) Telemetry.StopRecording(); else StartRecording(); };
 
             LineChart Card(string title)
             {
@@ -141,8 +143,8 @@ namespace FwHelper.UI
             int P(float v) => (int)Math.Round(v * s);
             int width = ClientSize.Width, m = P(M), gap = P(Gap), step = P(ButtonStep);
 
-            // Visible buttons packed from the right ("Live" only shows while a session is open)
-            var buttons = new[] { _view, _live, _open, _record }.Where(b => b != _live || _session is not null).ToArray();
+            // Visible buttons packed from the right ("Live" and "Summary" only show while a session is open)
+            var buttons = new[] { _view, _summary, _live, _open, _record }.Where(b => (b != _live && b != _summary) || _session is not null).ToArray();
             for (int i = 0; i < buttons.Length; i++)
                 buttons[i].SetBounds(width - m - (buttons.Length - i) * step + P(8), m, P(ButtonW), P(ButtonH));
             _status.SetBounds(m, m + P(7), Math.Max(0, width - 2 * m - buttons.Length * step), P(20));
@@ -196,7 +198,7 @@ namespace FwHelper.UI
 
             foreach (var c in _charts) c.SetData(data, capacity);
 
-            _live.Visible = _session is not null;
+            _live.Visible = _summary.Visible = _session is not null;
             LayoutCards();
             _record.Text = Telemetry.IsRecording ? "■ Stop" : "● Record";
             _record.BorderColor = Telemetry.IsRecording ? Package : RForm.BorderMain;
@@ -207,18 +209,41 @@ namespace FwHelper.UI
                 : recording.Length > 0 ? recording : "Live · last 5 minutes";
         }
 
+        private static string? _lastName;
+
+        /// <summary>Ask for a name (optional) and start. The name goes into the file name, and from there into the summary.</summary>
+        private void StartRecording()
+        {
+            string? game = Telemetry.History().LastOrDefault()?.FpsApp;
+            string suggestion = game is not null ? $"{game} {Modes.Name(ModeControl.CurrentMode)}" : _lastName ?? "";
+            string? name = PromptForm.AskOptional(this, "Record",
+                "Name (optional), e.g. game and settings:", suggestion, SessionRecorder.MaxNameLength);
+            if (name is null) return; // cancelled
+            _lastName = SessionRecorder.CleanName(name);
+            Telemetry.StartRecording(name);
+        }
+
+        private void ShowSummary()
+        {
+            if (_sessionPath is null) return;
+            if (RunReport.Open(_sessionPath) is { } error)
+                MessageBox.Show(this, error, "Summary", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
         private void OpenSession()
         {
             using var dialog = new OpenFileDialog
             {
                 InitialDirectory = Directory.Exists(SessionRecorder.Folder) ? SessionRecorder.Folder : Logger.AppDataDir,
-                Filter = "FW-Helper sessions (session-*.csv)|session-*.csv|CSV files (*.csv)|*.csv",
+                Filter = "FW-Helper sessions and summaries|session-*.csv;session-*.html|CSV files (*.csv)|*.csv",
             };
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             try
             {
-                _session = SessionRecorder.Load(dialog.FileName);
-                _sessionName = Path.GetFileNameWithoutExtension(dialog.FileName);
+                string csv = RunReport.CsvFor(dialog.FileName);
+                _session = SessionRecorder.Load(csv);
+                _sessionPath = csv;
+                _sessionName = Path.GetFileNameWithoutExtension(csv);
             }
             catch (Exception ex)
             {

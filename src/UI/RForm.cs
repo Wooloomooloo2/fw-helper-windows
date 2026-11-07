@@ -78,6 +78,61 @@ namespace FwHelper.UI
 
         private (Size size, Size minimum)? _restore;
 
+        // ---------- Displays coming and going ----------
+
+        private bool _watchingDisplays, _wasMinimized;
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            if (_watchingDisplays) return;
+            _watchingDisplays = true;
+            SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+            Disposed += (_, _) => SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        }
+
+        private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+        {
+            // Windows moves and minimises windows around the same moment: check once it has settled
+            Task.Delay(1500).ContinueWith(_ =>
+            {
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(KeepOnScreen); } catch (InvalidOperationException) { }
+            });
+        }
+
+        /// <summary>
+        /// After a display change, or when showing a window again: un-minimise a window with no taskbar button (nothing else could
+        /// restore it), and bring back a window whose title bar is no longer on any screen.
+        /// </summary>
+        public void KeepOnScreen()
+        {
+            if (!Visible) return;
+            if (WindowState == FormWindowState.Minimized)
+            {
+                if (ShowInTaskbar) return; // the taskbar button restores it, and Windows puts it back on screen then
+                WindowState = FormWindowState.Normal;
+            }
+            if (WindowState != FormWindowState.Normal) return;
+            var areas = Screen.AllScreens.Select(s => s.WorkingArea).ToArray();
+            var fallback = Screen.PrimaryScreen?.WorkingArea ?? areas[0];
+            var fitted = ScreenGuard.Fit(Bounds, areas, fallback);
+            if (fitted == Bounds) return;
+            Logger.WriteLine($"{Text}: off screen at {Bounds} after a display change, moved to {fitted}");
+            Bounds = fitted;
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            // Minimised without a taskbar button (Windows does this on unplugging a screen): there'd be no way back
+            if (WindowState == FormWindowState.Minimized && !ShowInTaskbar && IsHandleCreated)
+                BeginInvoke(() => { if (!IsDisposed) WindowState = FormWindowState.Normal; });
+            // Restored from the taskbar: its restore position may be on a screen that has gone since
+            else if (WindowState == FormWindowState.Normal && _wasMinimized && IsHandleCreated)
+                BeginInvoke(KeepOnScreen);
+            _wasMinimized = WindowState == FormWindowState.Minimized;
+        }
+
         /// <summary>
         /// For resizable windows, after <see cref="ScaleToDpi"/>: opens at the size saved under <paramref name="key"/> (or
         /// <paramref name="preferred"/>), kept inside the screen, and saves the size on close. Sizes are client sizes at 96 DPI.

@@ -25,7 +25,7 @@ namespace FwHelper.UI
         private readonly Label _liveLabel, _sensorList, _govStatus, _limitsNote, _overlayExplain, _winModeNow;
         private readonly CheckBox _winSyncCheck;
         private readonly RButton[] _overlayButtons = new RButton[3];
-        private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck, _cpuPowerCheck, _cpuMaxCheck;
+        private readonly CheckBox _powerCheck, _tempCheck, _backstopCheck, _cpuPowerCheck, _cpuMaxCheck, _boostOffCheck;
         private readonly Slider _powerSlider, _tempSlider, _cpuPowerSlider, _cpuMaxSlider;
         private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
 
@@ -188,6 +188,13 @@ namespace FwHelper.UI
             _tip.SetToolTip(_cpuMaxCheck, "Fixed CPU frequency ceiling for this profile (Windows power plan, both core types).");
             y += 30;
 
+            _boostOffCheck = new CheckBox { Text = "CPU boost off (about 1.8 GHz max, works in every power mode)", Location = new Point(M, y), AutoSize = true };
+            _boostOffCheck.Click += (_, _) => CommitLimits();
+            Controls.Add(_boostOffCheck);
+            _tip.SetToolTip(_boostOffCheck, "Turns CPU turbo off for this profile (Windows \"Maximum processor state\" 99 %). Unlike the limits above, it also works in Performance.\n" +
+                "In GPU-bound games the watts the CPU gives up go to the GPU. CPU-heavy games may lose FPS. Restored when FW-Helper quits.");
+            y += 26;
+
             _tempCheck = new CheckBox { Location = new Point(M, y + 4), Size = new Size(150, 22) };
             _tempCheck.Click += (_, _) => CommitLimits();
             Controls.Add(_tempCheck);
@@ -305,6 +312,7 @@ namespace FwHelper.UI
             _cpuMaxCheck.Checked = cpuMhz is not null;
             _cpuMaxSlider.SetValueSilently(cpuMhz ?? 2400);
             _cpuMaxCheck.Text = $"CPU max: {_cpuMaxSlider.Value} MHz";
+            _boostOffCheck.Checked = CpuBoost.IsOff(mode);
 
             int? cap = GovernorControl.TempCap();
             _tempCheck.Checked = cap is not null;
@@ -415,6 +423,7 @@ namespace FwHelper.UI
             GovernorControl.SetPowerTarget(_editMode, _powerCheck.Checked ? _powerSlider.Value : null);
             GovernorControl.SetCpuPowerTarget(_editMode, _cpuPowerCheck.Checked ? _cpuPowerSlider.Value : null);
             GovernorControl.SetCpuFreqCap(_editMode, _cpuMaxCheck.Checked ? _cpuMaxSlider.Value : null);
+            CpuBoost.SetOff(_editMode, _boostOffCheck.Checked);
             GovernorControl.SetTempCap(_tempCheck.Checked ? _tempSlider.Value : null);
             GovernorControl.SetBackstopEnabled(_backstopCheck.Checked);
             // The temperature cap is global; the power target only matters if this is the active profile
@@ -444,7 +453,7 @@ namespace FwHelper.UI
         /// the Best Performance overlay (measured 2026-11-06; the overlay's own setting needs admin to change).
         /// </summary>
         public static string LimitsNote(int overlay) => overlay == PerformanceOverlay
-            ? "⚠ No effect in Performance: Windows ignores these limits there (the EC hard throttle still works). Set this profile to Balanced to use them."
+            ? "⚠ No effect in Performance: Windows ignores these limits there (CPU boost off and the EC hard throttle still work). Set this profile to Balanced to use them."
             : "Limits the CPU cores only: GPU power isn't capped. No driver or admin needed.";
 
         private void RefreshLive()

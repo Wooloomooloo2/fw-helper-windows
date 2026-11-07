@@ -84,3 +84,26 @@ both, but below 100 % it switches turbo off (99 % ≈ 1.8 GHz), so it can't act 
 - **The policy resets on every profile switch and settings change.** One profile's cap and averages no longer carry over into
   the next. While a cap is being raised, the status says "easing off" instead of naming a target that is far away.
 - Still open: what to offer in Performance mode, where the only reachable settings are "turbo on" and "≤ ~1.8 GHz".
+
+## Amendment (2026-11-07): per-profile "CPU boost off" (3rd)
+
+**Context.** In Performance mode the only CPU setting Windows obeys without admin is "Maximum processor state", and below 100 % it
+switches turbo off. That's too blunt to drive the governor, but it is a useful on/off choice for a game. Cyberpunk on BIOS 03.04 is
+GPU-bound and held by a shared ~30 W package budget, so the watts the CPU gives up could go to the GPU. CPU-heavy games such as HZD
+would lose from it, so it has to be per profile, and later per game (plan Phase 5).
+
+**Decision.**
+- A per-profile switch `cpu_boost_off_<mode>`, off by default. When it's on, `CpuBoost` writes 99 % to `PROCTHROTTLEMAX` and
+  `PROCTHROTTLEMAX1`, AC and DC, in the active plan, keeping any lower value the user already had.
+- It's separate from the governor's frequency caps, which can still apply on top in Balanced.
+- The user's own values are saved once (`boost_saved_state`) and restored:
+  - on a switch to a profile without it, on quit and on `SafeShutdown`;
+  - at the next start after a crash;
+  - by the guard after a hard kill.
+
+  This is the same lease pattern as `gov_saved_caps`.
+- It's shown in the main window's Windows line ("· CPU boost off"), in the overlay's PWR row, and in recordings (`cpu_boost_off`
+  column, summary header).
+
+**Consequences.** Whether it actually gains FPS is not known yet. The hardware test plan has the A/B: Cyberpunk in Performance with
+boost on and off, plus HZD as the CPU-heavy control. If it never helps, the switch goes.
