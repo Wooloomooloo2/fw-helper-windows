@@ -84,7 +84,7 @@ namespace FwHelper.UI
         private void OnSampled(TelemetrySample s)
         {
             if (!IsHandleCreated) return;
-            var rows = Rows(s, Telemetry.FpsError, PowerModeWatcher.Status);
+            var rows = Rows(s, Telemetry.FpsError, PowerModeWatcher.Status, s.Time - Telemetry.RecordingStarted);
             BeginInvoke(() =>
             {
                 _rows = rows;
@@ -115,20 +115,21 @@ namespace FwHelper.UI
             using var keyBrush = new SolidBrush(KeyColor);
             using var valBrush = new SolidBrush(ValueColor);
             using var fpsBrush = new SolidBrush(FpsColor);
+            using var recBrush = new SolidBrush(Color.FromArgb(255, 90, 90));
             foreach (var row in _rows)
             {
                 bool fps = row.Key == "FPS";
                 var font = fps ? _fpsFont : _font;
                 float lineH = font.GetHeight(g);
                 g.DrawString(row.Key, _font, keyBrush, S(8), y + (lineH - _font.GetHeight(g)) / 2);
-                g.DrawString(row.Value, font, fps ? fpsBrush : valBrush, S(14) + keyW, y);
+                g.DrawString(row.Value, font, fps ? fpsBrush : row.Key == "REC" ? recBrush : valBrush, S(14) + keyW, y);
                 y += lineH;
             }
         }
 
         // ---------- Content (pure, unit-tested) ----------
 
-        public static IReadOnlyList<OverlayRow> Rows(TelemetrySample s, string? fpsError = null, PowerModeStatus? power = null)
+        public static IReadOnlyList<OverlayRow> Rows(TelemetrySample s, string? fpsError = null, PowerModeStatus? power = null, TimeSpan? recording = null)
         {
             static string W(double? w) => w is double v ? $"{v:0.0} W" : "– W";
             static string Pct(double? p) => p is double v ? $"{v:0}%" : "–%";
@@ -156,6 +157,12 @@ namespace FwHelper.UI
                 if (s.BatteryW is double bw) battery += $"  {bw:0.0} W";
             }
             rows.Add(new("BAT", battery));
+            // Recording: on top, in red, so a hotkey start is visible inside the game
+            if (recording is TimeSpan r)
+            {
+                if (r < TimeSpan.Zero) r = TimeSpan.Zero;
+                rows.Insert(0, new("REC", $"● {(int)r.TotalMinutes}:{r.Seconds:00}"));
+            }
             return rows;
         }
     }

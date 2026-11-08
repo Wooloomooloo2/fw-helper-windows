@@ -36,7 +36,7 @@ namespace FwHelper.Features
             Path.IsPathRooted(stored) ? stored : Path.Combine(sessionsFolder, stored);
 
         /// <summary>The baseline index, kept inside the list.</summary>
-        public int BaselineIndex => Runs.Count == 0 ? 0 : Math.Clamp(Baseline, 0, Runs.Count - 1);
+        [JsonIgnore] public int BaselineIndex => Runs.Count == 0 ? 0 : Math.Clamp(Baseline, 0, Runs.Count - 1);
 
         private static readonly JsonSerializerOptions Json = new()
         {

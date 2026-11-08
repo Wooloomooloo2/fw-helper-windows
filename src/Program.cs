@@ -181,17 +181,36 @@ namespace FwHelper
             var overlayItem = new ToolStripMenuItem("Overlay", null, (_, _) => ToggleOverlay());
             menu.Items.Add(overlayItem);
             menu.Opening += (_, _) => overlayItem.Checked = _overlay is { IsDisposed: false };
-            var stopRecording = new ToolStripMenuItem("Stop recording", null, (_, _) => Telemetry.StopRecording());
-            menu.Items.Add(stopRecording);
+            var recording = new ToolStripMenuItem("Start recording", null, (_, _) => ToggleRecording()) { ShortcutKeyDisplayString = "Ctrl+Shift+F6" };
+            menu.Items.Add(recording);
             menu.Items.Add("Open log", null, (_, _) => ProcessHelper.OpenUrl(Logger.LogFile));
             menu.Items.Add("Quit", null, (_, _) => Exit());
             menu.Opening += (_, _) =>
             {
                 // Profiles can be added or renamed at any time: rebuild them on every open
                 ProfileMenu.Fill(menu.Items, 0);
-                stopRecording.Visible = Telemetry.IsRecording;
+                recording.Text = Telemetry.IsRecording ? "Stop recording" : "Start recording";
             };
             return menu;
+        }
+
+        /// <summary>
+        /// Ctrl+Shift+F6 and the tray: start or stop recording without a prompt (it can't ask inside a game). The file is named
+        /// after the game if one is presenting frames, and the profile. A toast says what happened; the overlay shows REC.
+        /// </summary>
+        public static void ToggleRecording()
+        {
+            if (Telemetry.IsRecording)
+            {
+                Telemetry.StopRecording();
+                Toast.ShowToast("■ Recording saved", Color.FromArgb(120, 120, 120));
+                return;
+            }
+            string? game = Telemetry.History().LastOrDefault(s => s.Fps > 0 && s.Time > DateTime.Now.AddSeconds(-10))?.FpsApp;
+            string name = string.Join(" ", new[] { game is null ? null : Path.GetFileNameWithoutExtension(game), Modes.Name(ModeControl.CurrentMode) }
+                .Where(x => !string.IsNullOrEmpty(x)));
+            Telemetry.StartRecording(name);
+            if (Telemetry.IsRecording) Toast.ShowToast("● Recording", Color.FromArgb(235, 70, 70));
         }
 
         private static OverlayForm? _overlay;

@@ -53,6 +53,13 @@
   (`session-20261107-140512 Cyberpunk 1080p medium.csv`) and becomes the summary's title label. Cancel doesn't record.
 - A file renamed after its timestamp (`session-20261104-172058cyber_punk_bal.csv`) uses the extra text as the run's label.
 
+### Record from inside a game
+- **Ctrl+Shift+F6** starts and stops recording from anywhere, including in a game. The tray menu has the same item
+  (Start recording / Stop recording). It doesn't ask for a name: the file is named after the game presenting frames (when
+  telemetry is already running, e.g. with the overlay on) and the profile, such as `session-… Cyberpunk2077 Balanced.csv`.
+- A toast says "● Recording" or "■ Recording saved", and the overlay shows a red **REC 3:12** row on top while recording.
+  The "Recording saved" notification still offers the summary.
+
 ### Compare runs
 - **Monitor → Compare…** puts several recordings side by side. Add runs (pick several at once), name each one, and
   choose the baseline with its round button. **Save and open report** saves the project to

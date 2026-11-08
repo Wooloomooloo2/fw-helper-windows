@@ -32,7 +32,7 @@ namespace FwHelper.UI
 
         [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint mods, uint vk);
         [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-        private const int WM_HOTKEY = 0x0312, HOTKEY_MODE = 1;
+        private const int WM_HOTKEY = 0x0312, HOTKEY_MODE = 1, HOTKEY_RECORD = 2;
 
         public SettingsForm()
         {
@@ -406,11 +406,15 @@ namespace FwHelper.UI
             // Ctrl+Shift+F5 cycles performance modes (G-Helper uses Fn+F5 / Ctrl+Shift+F5)
             if (!RegisterHotKey(Handle, HOTKEY_MODE, 0x0002 | 0x0004 | 0x4000, (uint)Keys.F5))
                 Logger.WriteLine("Can't register Ctrl+Shift+F5");
+            // Ctrl+Shift+F6 starts and stops recording, from inside a game (plan Phase 1)
+            if (!RegisterHotKey(Handle, HOTKEY_RECORD, 0x0002 | 0x0004 | 0x4000, (uint)Keys.F6))
+                Logger.WriteLine("Can't register Ctrl+Shift+F6 (another app has it)");
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
             UnregisterHotKey(Handle, HOTKEY_MODE);
+            UnregisterHotKey(Handle, HOTKEY_RECORD);
             base.OnHandleDestroyed(e);
         }
 
@@ -421,6 +425,8 @@ namespace FwHelper.UI
                 ModeControl.CycleMode();
                 Program.Toast.ShowToast(Modes.Name(ModeControl.CurrentMode), Modes.ColorOf(ModeControl.CurrentMode));
             }
+            else if (m.Msg == WM_HOTKEY && m.WParam == HOTKEY_RECORD)
+                Program.ToggleRecording();
             base.WndProc(ref m);
         }
     }

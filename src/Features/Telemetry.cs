@@ -35,6 +35,14 @@ namespace FwHelper.Features
         public static bool IsRecording => _recorder is not null;
         public static string? RecordingFile => _recorder?.FilePath;
         public static int RecordedRows => _recorder?.Rows ?? 0;
+        public static DateTime? RecordingStarted => _recorder?.Started;
+
+        /// <summary>Start (with this name) or stop: the Ctrl+Shift+F6 hotkey and the tray item.</summary>
+        public static void ToggleRecording(string? name = null)
+        {
+            if (IsRecording) StopRecording();
+            else StartRecording(name);
+        }
 
         public static List<TelemetrySample> History()
         {
