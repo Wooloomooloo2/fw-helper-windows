@@ -58,7 +58,14 @@
   (Start recording / Stop recording). It doesn't ask for a name: the file is named after the game presenting frames (when
   telemetry is already running, e.g. with the overlay on) and the profile, such as `session-… Cyberpunk2077 Balanced.csv`.
 - A toast says "● Recording" or "■ Recording saved", and the overlay shows a red **REC 3:12** row on top while recording.
-  The "Recording saved" notification still offers the summary.
+  The "Recording saved" notification still leads to the summary.
+- **1 % and 0.1 % lows.** While recording, every frame's time is saved next to the session (`session-….frames.csv`, about
+  1 MB per 15 minutes). The summary shows the 1 % and 0.1 % lows and the longest frame; Compare shows the 1 % low beside the
+  median and in its conclusions. Recordings from before this have none and keep the 5th percentile of one-second averages.
+- **Run notes.** When a recording starts, FW-Helper saves the BIOS and EC versions, its own version and the fan curve to
+  `session-….notes.json`. Clicking "Recording saved" (or stopping in the Monitor) asks for the game settings and notes,
+  then opens the summary. They show in the summary's header, and Compare lists the game settings, fan curve and firmware in
+  "What differs". The ✎ button in Compare edits a run's notes later.
 
 ### Compare runs
 - **Monitor → Compare…** puts several recordings side by side. Add runs (pick several at once), name each one, and
@@ -86,6 +93,10 @@
   stayed minimised for good.
 - Now, after any display change, FW-Helper un-minimises windows that have no taskbar button. It brings back any window whose title
   bar isn't on a screen, and the main window restores before moving to the tray corner.
+- The main window could be left as a bare title bar (129 × 36) after standby with the external screen unplugged: a window
+  rescaled for the other screen while minimised has no inner area, so it was rebuilt at zero size. FW-Helper now rescales a
+  minimised window from its last normal size, and puts the size back whenever it finds a window shrunk to under half (on a
+  display change, on restore, and when the main window is opened from the tray).
 - Fans + Power opens beside the main window on the same screen, also when that screen is left of the main one. The overlay
   keeps its position on such a screen too.
 

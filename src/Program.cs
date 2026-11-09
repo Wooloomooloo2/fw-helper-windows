@@ -96,9 +96,10 @@ namespace FwHelper
                     "To let Windows' setting win, untick \"Keep Windows in step\" in Fans + Power.", ToolTipIcon.Info));
             PowerModeWatcher.Start();
             TrayIcon.BalloonTipClicked += (_, _) => { var action = _balloonAction; _balloonAction = null; action?.Invoke(); };
-            Telemetry.RecordingStopped += (path, rows) => { if (rows >= 10 && !IsExiting) SettingsForm.BeginInvoke(() =>
-                Balloon(() => RunReport.Open(path), "Recording saved",
-                    $"{Path.GetFileName(path)}, {rows / 60} min {rows % 60:00} s. Click here for its summary.", ToolTipIcon.Info)); };
+            // Stopped from the Monitor, the notes window is already open: no notification then
+            Telemetry.RecordingStopped += (path, rows) => { if (rows >= 10 && !IsExiting) SettingsForm.BeginInvoke(() => { if (!NotesForm.IsOpenFor(path))
+                Balloon(() => NotesForm.ShowFor(path, offerSummary: true), "Recording saved",
+                    $"{Path.GetFileName(path)}, {rows / 60} min {rows % 60:00} s. Click to add the game settings and see its summary.", ToolTipIcon.Info); }); };
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
             SystemEvents.SessionEnding += (_, _) => SafeShutdown();

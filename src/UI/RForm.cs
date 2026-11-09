@@ -35,10 +35,11 @@ namespace FwHelper.UI
         {
             _layoutDpi = DeviceDpi;
             float s = DeviceDpi / 96f;
-            if (Math.Abs(s - 1) < 0.01f) return;
+            if (Math.Abs(s - 1) < 0.01f) { RememberClient(); return; }
             var client = ClientSize;
             Scale(new SizeF(s, s));
             ClientSize = new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s));
+            RememberClient();
         }
 
         /// <summary>
@@ -74,6 +75,7 @@ namespace FwHelper.UI
                 if (StartPosition == FormStartPosition.CenterScreen)
                     Location = new Point(work.Left + (work.Width - Width) / 2, work.Top + (work.Height - Height) / 2);
             }
+            RememberClient();
         }
 
         private (Size size, Size minimum)? _restore;
@@ -113,6 +115,7 @@ namespace FwHelper.UI
                 WindowState = FormWindowState.Normal;
             }
             if (WindowState != FormWindowState.Normal) return;
+            RepairSize();
             var areas = Screen.AllScreens.Select(s => s.WorkingArea).ToArray();
             var fallback = Screen.PrimaryScreen?.WorkingArea ?? areas[0];
             var fitted = ScreenGuard.Fit(Bounds, areas, fallback);
@@ -129,8 +132,16 @@ namespace FwHelper.UI
                 BeginInvoke(() => { if (!IsDisposed) WindowState = FormWindowState.Normal; });
             // Restored from the taskbar: its restore position may be on a screen that has gone since
             else if (WindowState == FormWindowState.Normal && _wasMinimized && IsHandleCreated)
+            {
+                if (_pendingClient is Size pending)
+                {
+                    _pendingClient = null;
+                    BeginInvoke(() => { if (!IsDisposed) ClientSize = pending; });
+                }
                 BeginInvoke(KeepOnScreen);
+            }
             _wasMinimized = WindowState == FormWindowState.Minimized;
+            if (!_wasMinimized) RememberClient();
         }
 
         /// <summary>
@@ -165,10 +176,47 @@ namespace FwHelper.UI
             // Moved to a monitor with a different scale factor
             float s = (float)e.DeviceDpiNew / e.DeviceDpiOld;
             var client = ClientSize;
+            bool minimized = WindowState == FormWindowState.Minimized;
             base.OnDpiChanged(e);
             _layoutDpi = e.DeviceDpiNew;
             Scale(new SizeF(s, s));
-            ClientSize = new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s));
+            // A minimised window has no client area (0 × 0): scaling that left the window as a bare title bar, 2026-11-08 after
+            // standby with the external screen unplugged. Use the last normal size, and apply it once the window is restored.
+            var target = !minimized && client.Width > 0 && client.Height > 0
+                ? new Size((int)Math.Round(client.Width * s), (int)Math.Round(client.Height * s))
+                : ExpectedClient();
+            if (target is not Size size) return;
+            if (minimized) _pendingClient = size;
+            else ClientSize = size;
+        }
+
+        // ---------- Never left as a bare title bar ----------
+
+        /// <summary>The last normal client size at 96 DPI, and a size to apply once a minimised window is restored.</summary>
+        private Size? _client96, _pendingClient;
+
+        private void RememberClient()
+        {
+            if (WindowState != FormWindowState.Normal || ClientSize.Width <= 0 || ClientSize.Height <= 0) return;
+            if (ScreenGuard.Shrunk(ClientSize, ExpectedClient())) return; // never learn a broken size
+            float k = 96f / DeviceDpi;
+            _client96 = new Size((int)Math.Round(ClientSize.Width * k), (int)Math.Round(ClientSize.Height * k));
+        }
+
+        private Size? ExpectedClient()
+        {
+            if (_client96 is not Size c) return null;
+            float s = DeviceDpi / 96f;
+            return new Size((int)Math.Round(c.Width * s), (int)Math.Round(c.Height * s));
+        }
+
+        /// <summary>Put back the normal size if the window has been shrunk to a fraction of it. True if it did.</summary>
+        protected bool RepairSize()
+        {
+            if (WindowState != FormWindowState.Normal || ExpectedClient() is not Size expected || !ScreenGuard.Shrunk(ClientSize, expected)) return false;
+            Helpers.Logger.WriteLine($"{Text}: shrunk to {ClientSize.Width}x{ClientSize.Height}, size put back to {expected.Width}x{expected.Height}");
+            ClientSize = expected;
+            return true;
         }
 
         public static bool IsDarkTheme()

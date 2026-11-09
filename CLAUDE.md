@@ -33,7 +33,7 @@ anything. See [docs/feature-parity.md](docs/feature-parity.md).
 
 ## Current state (2026-10-10)
 
-Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 266 unit tests pass. `publish/` is gitignored.
+Version **0.3.0** was released 2026-10-11 (tag `v0.3.0`): the battery monitor (ADR 0018). 0.2.0 was released 2026-10-07. Builds with 0 warnings and 275 unit tests pass. `publish/` is gitignored.
 The user is running the battery monitor build from `publish\` (2026-10-11 09:53; it is the 0.3.0 code but reports 0.2.0). Before relaunching it, ask, or at
 least say so: `--hwtest` and starting a second instance both close it. Read-only EC probes and CLI calls are always fine.
 
@@ -64,7 +64,7 @@ least say so: `--hwtest` and starting a second instance both close it. Read-only
 | User profiles (ids 3+) + named fan-curve library | 🟡 built and unit-tested (pure parts). Window rendered offscreen; not yet used live | ADR 0012 |
 | **Battery monitor** (event-driven log, EcoQoS thread, 30 days → months → years, Battery window from the main window and tray, `--battery`, tray tooltip) | 🟡 logging verified live since 2026-10-10 (185 events: % steps, plug, screen). 2026-10-11: own window, 5 s refresh, grouped headings; standby awake/asleep split from Kernel-Power 507 (60 real sessions parsed); "Sleep after" setting. Rendered offscreen with real data | ADR 0018, `BatteryHistoryTests` |
 | CLI (`--status` etc. over a named pipe) + overlay window | ✅ CLI verified against the running app (8 back-to-back calls); 🟡 overlay not yet used live | ADR 0015 |
-| Unit tests | ✅ 266: recording hotkey + overlay REC, compare runs, screen guard, CPU boost off, run summary + report, Windows power mode, battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
+| Unit tests | ✅ 275: frame times + lows, run notes, recording hotkey + overlay REC, compare runs, screen guard, CPU boost off, run summary + report, Windows power mode, battery history and standby, keyboard backlight Auto, fan loop (fake EC), controller, floor, curve, governor (policy + loop on a fake, incl. CPU power cap and CPU max), backstop, FPS, telemetry, profiles, CLI, overlay rows | `dotnet test tests/FwHelper.Tests` |
 
 ### Resume here
 
@@ -167,6 +167,8 @@ src/
     FpsCounter.cs         pure FPS per process from present timestamps
     Telemetry.cs          1 Hz on-demand sampler (ref-counted Use()), 300-sample history, recording
     TelemetrySample.cs    one row + CSV format (readers map columns by header name; only append columns)
+    FrameLog.cs           every frame's time while recording → session-….frames.csv (1 % / 0.1 % lows); loader
+    RunContext.cs         run notes → session-….notes.json: BIOS/EC/app/fan curve at start, game settings + notes typed after
     SessionRecorder.cs    Documents\FW Benchmark\session-*.csv writer/loader, no pruning, 12 h auto-stop
     RunSummary.cs         pure: a run's steady seconds (game presenting, 10 s trim, menus left out), stats, limit shares, warnings
     SummaryReport.cs      pure: self-contained HTML report of one run (session-*.html next to the CSV, embedded JSON, hover readout)
@@ -182,7 +184,7 @@ src/
     ScreenControl.cs      internal panel refresh rate (from G-Helper)
   Helpers/                AppConfig (JSON), Logger, EcoQos (per-thread efficiency mode), Startup (Task Scheduler), ProcessHelper, SelfTest, Guardian (--guard), HardwareTests (--hwtest),
                           Cli + CommandProtocol (pure) + CommandServer (named pipe, runs commands on the UI thread)
-  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, RunReport (writes + opens a summary), CompareForm + CompareRunner (compare projects), BatteryForm + BatteryPanel, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
+  UI/                     SettingsForm (main), FansForm (Fans + Power, profile picker), MonitorForm + LineChart, RunReport (loads a session with frames + notes, writes + opens a summary), CompareForm + CompareRunner (compare projects), NotesForm (run notes), BatteryForm + BatteryPanel, OverlayForm, FanCurveEditor, ProfileMenu, PromptForm,
                           RForm/RButton/Slider (G-Helper), ScreenGuard (pure: windows stay reachable), ToastForm, TrayIcons
 tests/
   FwHelper.Tests/         xunit, no hardware: FakeFan (fake EC) drives FanLoop; never touches AppConfig
@@ -257,6 +259,9 @@ evidence of what has been verified on hardware.** Read it before claiming a feat
   restore position is still on the screen that has gone. `RForm.KeepOnScreen` (on `DisplaySettingsChanged`, on restore, and when
   showing) brings them back via `ScreenGuard`. Without a taskbar button, a minimised window can never come back by itself. Screens
   can sit at negative coordinates (the laptop panel is at x = −2880), so never clamp positions to 0.
+  **A minimised window has a 0 × 0 client area:** never scale or save from it. `RForm` keeps the last normal size (`_client96`),
+  applies DPI changes made while minimised on restore, and `RepairSize` (via `ScreenGuard.Shrunk`) puts back a window found
+  under half its size (seen 2026-11-08: the main window left as a 129 × 36 title bar after standby).
 - A disabled `RButton` used to draw its text twice (fixed 2026-10-05 in `OnPaint`). The profile buttons are hidden rather than disabled anyway.
 - **Argument order in `Program.Main` matters:** `--guard`, then CLI verbs, then `--selftest`/`--hwtest`, then `CloseOtherInstances`.
   A new argument placed after `CloseOtherInstances` will kill the user's running app.

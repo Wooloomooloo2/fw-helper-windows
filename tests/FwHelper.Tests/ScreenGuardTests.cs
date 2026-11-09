@@ -38,5 +38,16 @@ namespace FwHelper.Tests
         [Fact]
         public void A_title_bar_above_the_top_is_unreachable() =>
             Assert.False(ScreenGuard.Reachable(new Rectangle(100, -500, 800, 400), new[] { External }));
+
+        [Fact]
+        public void A_window_left_as_a_bare_title_bar_counts_as_shrunk()
+        {
+            var expected = new Size(700, 1100);                         // the main window at 200 %
+            Assert.True(ScreenGuard.Shrunk(new Size(250, 0), expected)); // 2026-11-08: 129 x 36 at 100 %, no client area
+            Assert.True(ScreenGuard.Shrunk(new Size(700, 500), expected));
+            Assert.False(ScreenGuard.Shrunk(new Size(700, 1100), expected));
+            Assert.False(ScreenGuard.Shrunk(new Size(400, 600), expected)); // a resizable window made smaller by hand
+            Assert.False(ScreenGuard.Shrunk(new Size(10, 10), null));       // nothing known yet
+        }
     }
 }

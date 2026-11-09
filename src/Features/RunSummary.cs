@@ -10,6 +10,25 @@ namespace FwHelper.Features
     public record Share(string Value, double Fraction);
 
     /// <summary>
+    /// Frame times over the steady seconds (plan Phase 1). The lows are the FPS of the 99th and 99.9th percentile frame time, the
+    /// usual definition (PresentMon, CapFrameX "percentile" lows): they show stutter that one-second averages hide.
+    /// </summary>
+    public record FrameStat(int Count, double AvgFps, double? Low1, double? Low01, double P99Ms, double MaxMs)
+    {
+        /// <summary>Fewer frames than this and a percentile is a handful of frames: not shown.</summary>
+        public const int MinFor1 = 100, MinFor01 = 1000;
+
+        public static FrameStat? From(IEnumerable<double> frameMs)
+        {
+            var v = frameMs.Where(x => x > 0 && double.IsFinite(x)).OrderBy(x => x).ToArray();
+            if (v.Length == 0) return null;
+            double p99 = RunSummary.Percentile(v, 99), p999 = RunSummary.Percentile(v, 99.9);
+            return new FrameStat(v.Length, 1000 / v.Average(),
+                v.Length >= MinFor1 ? 1000 / p99 : null, v.Length >= MinFor01 ? 1000 / p999 : null, p99, v[^1]);
+        }
+    }
+
+    /// <summary>
     /// What one recorded run did (plan Phase 2), from its 1 Hz samples. Pure, so it is unit-tested against fixed rows.
     /// Steady state: the seconds where the run's game was presenting frames, minus the first <see cref="TrimSeconds"/>
     /// (loading, shader compile). Without a game, every second counts.
@@ -50,6 +69,12 @@ namespace FwHelper.Features
 
         public Stat? this[string key] => Stats.TryGetValue(key, out var s) ? s : null;
         /// <summary>Median FPS per average package watt; null without both.</summary>
+        /// <summary>Frame-time figures, when the recording has a frames file (recordings from 2026-11-08 on).</summary>
+        public FrameStat? Frames { get; private init; }
+
+        /// <summary>The run notes (firmware, fan curve, game settings, notes), when the recording has them. Set by the loader.</summary>
+        public RunContext? Context { get; set; }
+
         public double? FpsPerWatt => this["fps"] is { } f && this["package_w"] is { Avg: > 0 } p ? f.Median / p.Avg : null;
 
         /// <summary>The numeric columns summarised, with their CSV name, label and unit.</summary>
@@ -76,7 +101,8 @@ namespace FwHelper.Features
             ("gpu_shared_gb", "GPU shared memory", "GB", s => s.GpuSharedGb),
         };
 
-        public static RunSummary From(IReadOnlyList<TelemetrySample> samples, string? label = null)
+        public static RunSummary From(IReadOnlyList<TelemetrySample> samples, string? label = null,
+            IReadOnlyList<(DateTime Time, double Ms)>? frames = null)
         {
             if (samples.Count == 0) return new RunSummary { Label = label, Warnings = new[] { "The recording is empty." } };
 
@@ -153,7 +179,25 @@ namespace FwHelper.Features
                 PowerTarget = rows.Select(s => s.PL1).FirstOrDefault(p => p is not null),
                 FreqCap = rows.Select(s => s.FreqCapMHz).Where(c => c is not null).Min(),
                 Warnings = warnings,
+                Frames = frames is { Count: > 0 } ? FrameStat.From(SteadyFrames(samples, steady, frames)) : null,
             };
+        }
+
+        /// <summary>
+        /// The frame times that fall in steady seconds. A sample covers the second before it was taken, so a frame belongs to the
+        /// first sample at or after it (if that's within 1.5 s); frames in loading, menus and the trimmed start are left out.
+        /// </summary>
+        public static IEnumerable<double> SteadyFrames(IReadOnlyList<TelemetrySample> samples, IReadOnlyCollection<int> steady,
+            IReadOnlyList<(DateTime Time, double Ms)> frames)
+        {
+            var isSteady = new HashSet<int>(steady);
+            int i = 0;
+            foreach (var (time, ms) in frames.OrderBy(f => f.Time))
+            {
+                while (i < samples.Count && samples[i].Time < time) i++;
+                if (i == samples.Count) yield break;
+                if (isSteady.Contains(i) && (samples[i].Time - time).TotalSeconds <= 1.5) yield return ms;
+            }
         }
 
         /// <summary>The label a user gave by renaming the file: "session-20261104-172058cyber_punk_bal" → "cyber punk bal".</summary>

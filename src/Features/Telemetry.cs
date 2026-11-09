@@ -24,6 +24,9 @@ namespace FwHelper.Features
         public static string? FpsError => _presents?.Error;
         private static int _users;
         private static SessionRecorder? _recorder;
+        private static FrameLog? _frames;
+        /// <summary>The process the last sample's FPS came from (the frames file follows it).</summary>
+        private static int? _fpsPid;
 
         /// <summary>Raised on a background thread after each sample.</summary>
         public static event Action<TelemetrySample>? Sampled;
@@ -92,9 +95,34 @@ namespace FwHelper.Features
                 if (_recorder is not null) return;
                 try { _recorder = new SessionRecorder(name); }
                 catch (Exception ex) { Logger.WriteLine("Can't start recording: " + ex.Message); return; }
+                try { _frames = new FrameLog(FrameLog.PathFor(_recorder.FilePath), _recorder.Started); }
+                catch (Exception ex) { Logger.WriteLine("Can't record frame times: " + ex.Message); }
+                try { CaptureContext().Save(_recorder.FilePath); }
+                catch (Exception ex) { Logger.WriteLine("Can't write run notes: " + ex.Message); }
             }
             _recordingUse = Use();
             RecordingChanged?.Invoke();
+        }
+
+        /// <summary>What FW-Helper knows about the run at its start: firmware, its own version and the fan curve.</summary>
+        private static RunContext CaptureContext()
+        {
+            string? bios = null;
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\BIOS");
+                bios = key?.GetValue("BIOSVersion") as string;
+            }
+            catch (Exception) { }
+            int mode = ModeControl.CurrentMode;
+            return new RunContext
+            {
+                Bios = bios,
+                Ec = FrameworkEc.GetVersion(),
+                App = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3),
+                FanCurve = RunContext.FanName(Modes.IsCustomFan(mode), Modes.GetCurve(mode).ToString(),
+                    FanCurveLibrary.All().Select(c => (c.name, c.curve.ToString()))),
+            };
         }
 
         public static void StopRecording()
@@ -106,6 +134,9 @@ namespace FwHelper.Features
                 stopped = (_recorder.FilePath, _recorder.Rows);
                 _recorder.Dispose();
                 _recorder = null;
+                if (_frames is not null) Logger.WriteLine($"Frame times: {_frames.Frames} frames");
+                _frames?.Dispose();
+                _frames = null;
             }
             _recordingUse?.Dispose();
             _recordingUse = null;
@@ -135,6 +166,13 @@ namespace FwHelper.Features
                 {
                     try { _recorder.Write(sample); }
                     catch (Exception ex) { Logger.WriteLine("Recording write failed: " + ex.Message); }
+                    // Every frame of the app the FPS figure follows. A new app starts from its last second, not its 3 s backlog
+                    if (_frames is not null && _presents is { Origin: DateTime origin } p && _fpsPid is int pid)
+                    {
+                        double after = pid == _frames.Pid ? _frames.LastMs : p.Counter.Latest - FpsCounter.WindowMs;
+                        try { _frames.Write(pid, p.Counter.PresentsAfter(pid, after), origin); }
+                        catch (Exception ex) { Logger.WriteLine("Frame times write failed: " + ex.Message); _frames.Dispose(); _frames = null; }
+                    }
                     expired = _recorder.Expired;
                 }
             }
@@ -150,6 +188,7 @@ namespace FwHelper.Features
             PowerReading power;
             lock (_lock) power = _energy!.Read();
             var fps = _presents?.Current();
+            _fpsPid = fps?.pid;
             GpuClockReading? gpuClock;
             lock (_lock) gpuClock = _gpuClock?.Read();
 

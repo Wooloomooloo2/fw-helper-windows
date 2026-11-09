@@ -321,7 +321,7 @@ Built next because the user can test it at once on the firmware A/B recordings.
   - **Add runs…** (multi-select; reports work too);
   - **Save and open report**.
   Open session… also opens a project `.json`.
-- **Phase 1 started 2026-11-08:** Ctrl+Shift+F6 and the tray item start/stop recording without a prompt (named game + profile), with a toast and an overlay REC row. Still to do from Phase 1: benchmark run with warm-up, auto-record (off by default), run-context sidecar, frame times for 1 % lows.
+- **Phase 1 started 2026-11-08:** Ctrl+Shift+F6 and the tray item start/stop recording without a prompt (named game + profile), with a toast and an overlay REC row. Then frame times (`FrameLog`, `session-….frames.csv`: every frame of the followed app, gaps over 1 s skipped; lows = FPS of the 99th/99.9th percentile frame time over the steady seconds) and run notes (`RunContext`, `session-….notes.json`: BIOS/EC/app/fan curve at start; game settings + notes typed in `NotesForm` from the "Recording saved" notification, the Monitor stop, or ✎ in Compare). Still to do from Phase 1: benchmark run with warm-up, auto-record (off by default).
 - Not done: "Add to project…" when a recording starts (comes with Phase 1); run contexts (fan curve, firmware, in-game settings)
   for What differs (Phase 1 sidecar); conclusions by the Phase 4 rules; 1 % lows (Phase 1 frames).
 

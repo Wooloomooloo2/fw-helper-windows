@@ -11,6 +11,7 @@ namespace FwHelper.UI
     {
         private const int W = 720, M = 12, RowH = 30, NameX = 64, NameW = 250, InfoX = NameX + NameW + 8;
 
+        private readonly ToolTip _tips = new();
         private readonly ComboBox _project;
         private readonly Panel _rows;
         private readonly Label _hint;
@@ -134,7 +135,7 @@ namespace FwHelper.UI
                     MessageBox.Show(this, $"A project holds up to {CompareProject.MaxRuns} runs.", "Compare", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
-                var s = RunSummary.From(SessionRecorder.Load(csv), RunSummary.LabelFromFileName(csv));
+                var (_, s) = RunReport.Summarise(csv, RunSummary.LabelFromFileName(csv));
                 _runs.Add((new CompareRun(stored, CompareProject.DefaultName(csv, s)), Info(csv, s)));
             }
             catch (Exception ex)
@@ -146,7 +147,7 @@ namespace FwHelper.UI
         /// <summary>The dim line next to a run: game, length and fps.</summary>
         private static string Info(string csv, RunSummary? s)
         {
-            try { s ??= RunSummary.From(SessionRecorder.Load(csv)); }
+            try { s ??= RunReport.Summarise(csv, null).Summary; }
             catch (Exception ex) { return ex.Message; }
             string game = s.Game is { } g ? Path.GetFileNameWithoutExtension(g) : "no game";
             string fps = s["fps"] is { } f ? $" · {f.Median:0} FPS" : "";
@@ -174,9 +175,9 @@ namespace FwHelper.UI
                 var info = new Label
                 {
                     Text = _runs[i].Info, AutoEllipsis = true, ForeColor = RForm.ForeDim, Tag = "dim",
-                    Location = new Point(P(InfoX), top + P(4)), Size = new Size(Math.Max(P(40), inner - P(InfoX) - P(36)), P(20)),
+                    Location = new Point(P(InfoX), top + P(4)), Size = new Size(Math.Max(P(40), inner - P(InfoX) - P(66)), P(20)),
                 };
-                new ToolTip().SetToolTip(info, _runs[i].Run.File);
+                _tips.SetToolTip(info, _runs[i].Run.File);
                 var remove = new RButton { Text = "✕", Secondary = true, Location = new Point(inner - P(32), top), Size = new Size(P(26), P(24)) };
                 remove.Click += (_, _) =>
                 {
@@ -184,7 +185,12 @@ namespace FwHelper.UI
                     if (_baseline >= index && _baseline > 0) _baseline--;
                     BeginInvoke(RebuildRows);
                 };
-                _rows.Controls.AddRange(new Control[] { radio, name, info, remove });
+                var notes = new RButton { Text = "✎", Secondary = true, Location = new Point(inner - P(62), top), Size = new Size(P(26), P(24)) };
+                string csvPath = CompareProject.Resolve(SessionsFolder, _runs[i].Run.File);
+                notes.Click += (_, _) => { if (File.Exists(csvPath)) NotesForm.ShowFor(csvPath, offerSummary: false, this); };
+                _tips.SetToolTip(notes, "Run notes: game settings and what you changed");
+                _tips.SetToolTip(remove, "Leave this run out");
+                _rows.Controls.AddRange(new Control[] { radio, name, info, notes, remove });
             }
             if (_runs.Count == 0)
                 _rows.Controls.Add(new Label
@@ -260,8 +266,7 @@ namespace FwHelper.UI
                         else if (i == project.BaselineIndex) baseline = 0;
                         continue;
                     }
-                    var samples = SessionRecorder.Load(csv);
-                    entries.Add(new CompareEntry(run.Name, RunSummary.From(samples, run.Name), Path.GetFileName(csv)));
+                    entries.Add(new CompareEntry(run.Name, RunReport.Summarise(csv, run.Name).Summary, Path.GetFileName(csv)));
                 }
                 if (entries.Count == 0) return "None of the project's recordings could be found.";
                 string html = CompareReport.Html(project.Name, entries, Math.Max(0, baseline), Path.GetFileName(projectPath), Application.ProductVersion.Split('+')[0]);

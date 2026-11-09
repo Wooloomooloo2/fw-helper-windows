@@ -45,7 +45,7 @@ namespace FwHelper.UI
             _record = Button("● Record");
             _live.Click += (_, _) => { _session = null; _sessionName = _sessionPath = null; Redraw(); };
             _open.Click += (_, _) => OpenSession();
-            _record.Click += (_, _) => { if (Telemetry.IsRecording) Telemetry.StopRecording(); else StartRecording(); };
+            _record.Click += (_, _) => { if (Telemetry.IsRecording) StopRecording(); else StartRecording(); };
 
             LineChart Card(string title)
             {
@@ -225,6 +225,15 @@ namespace FwHelper.UI
             Telemetry.StartRecording(name);
         }
 
+        /// <summary>Stop, then ask for the run notes straight away (here there's no game in the way).</summary>
+        private void StopRecording()
+        {
+            string? path = Telemetry.RecordingFile;
+            int rows = Telemetry.RecordedRows;
+            if (path is not null && rows >= 10) NotesForm.ShowFor(path, offerSummary: true, this);
+            Telemetry.StopRecording();
+        }
+
         private void ShowSummary()
         {
             if (_sessionPath is null) return;
@@ -249,7 +258,7 @@ namespace FwHelper.UI
                 Filter = "FW-Helper sessions, summaries and compare projects|session-*.csv;session-*.html;*.json|CSV files (*.csv)|*.csv",
             };
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
-            if (dialog.FileName.EndsWith(CompareProject.Extension, StringComparison.OrdinalIgnoreCase))
+            if (dialog.FileName.EndsWith(CompareProject.Extension, StringComparison.OrdinalIgnoreCase) && !RunContext.IsNotesFile(dialog.FileName))
             {
                 ShowCompare(dialog.FileName);
                 return;

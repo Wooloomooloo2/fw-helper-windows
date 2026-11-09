@@ -75,7 +75,10 @@ namespace FwHelper.Features
             if (s.BoostOffFraction >= 0.5) ctx.Add("CPU boost <b>off</b>");
             if (s.PowerTarget is int pt) ctx.Add($"power target <b>{pt} W</b>");
             if (s.FreqCap is int fc) ctx.Add($"CPU capped down to <b>{fc} MHz</b>");
+            if (s.Context?.FanCurve is { } curve && curve != "EC auto") ctx.Add($"fan curve <b>{E(curve)}</b>");
+            if (s.Context?.GameSettings is { } gs) ctx.Add($"game settings <b>{E(gs)}</b>");
             sb.Append($"<p class=\"lede\">{string.Join(" · ", ctx)}</p>");
+            if (s.Context?.Notes is { } notes) sb.Append($"<p class=\"usernote\">{E(notes).Replace("\n", "<br>")}</p>");
             sb.Append($"<p class=\"note\">{Duration(s.Length)} recorded. ");
             sb.Append(s.Game is null
                 ? "No game was detected, so the figures cover every second."
@@ -95,7 +98,9 @@ namespace FwHelper.Features
             // Tiles
             sb.Append("<div class=\"tiles\">");
             if (s["fps"] is { } fps)
-                Tile(sb, "Median FPS", N(fps.Median), $"5th percentile {N(fps.P5)} · range {N(fps.Min)}–{N(fps.Max)}");
+                Tile(sb, "Median FPS", N(fps.Median), s.Frames is { Low1: double low1 } fr
+                    ? $"1 % low <b>{N(low1)}</b>{(fr.Low01 is double low01 ? $" · 0.1 % low {N(low01)}" : "")} · range {N(fps.Min)}–{N(fps.Max)}"
+                    : $"5th percentile {N(fps.P5)} · range {N(fps.Min)}–{N(fps.Max)}");
             if (s["package_w"] is { } pkg)
                 Tile(sb, "Package power", $"{W(pkg.Avg)}<small> W</small>",
                     $"CPU {W(s["cpu_w"]?.Avg)} W · GPU {W(s["gpu_w"]?.Avg)} W · rest {W(s["rest_w"]?.Avg)} W");
@@ -156,9 +161,22 @@ namespace FwHelper.Features
                 string u = unit.Length > 0 ? $" <span class=\"u\">{E(unit)}</span>" : "";
                 sb.Append($"<tr><td>{E(label)}</td><td>{F(st.Avg)}{u}</td><td>{F(st.Median)}</td><td>{F(st.P5)}</td><td>{F(st.Min)}</td><td>{F(st.Max)}</td></tr>");
             }
-            sb.Append("</tbody></table></div></section>\n");
+            sb.Append("</tbody></table></div>");
+            if (s.Frames is { } f)
+            {
+                string Ms(double v) => v.ToString("0.0", Inv);
+                sb.Append($"<p class=\"note\">Frame times: {f.Count.ToString("N0", Inv)} frames in the steady seconds, averaging {N(f.AvgFps)} FPS. " +
+                          (f.Low1 is double l1 ? $"1 % low {N(l1)} FPS (99 % of frames took under {Ms(f.P99Ms)} ms)" : $"Too few frames for a 1 % low (under {FrameStat.MinFor1})") +
+                          (f.Low01 is double l01 ? $", 0.1 % low {N(l01)} FPS" : "") +
+                          $"; the longest frame took {Ms(f.MaxMs)} ms. A low far below the median means stutter, even when the average looks fine.</p>");
+            }
+            else if (s["fps"] is not null)
+                sb.Append("<p class=\"note\">This recording has no frame times (they're recorded from 8 Nov 2026 on), so there are no 1 % lows: the 5th percentile is of one-second averages.</p>");
+            sb.Append("</section>\n");
 
-            sb.Append($"<footer class=\"note\">Made by FW-Helper {E(version)} from <span class=\"mono\">{E(csvName)}</span>. " +
+            string firmware = s.Context is { } c && (c.Bios ?? c.Ec) is not null
+                ? $"Recorded on BIOS {E(c.Bios ?? "?")}, EC {E(c.Ec ?? "?")}{(c.App is { } app ? $", FW-Helper {E(app)}" : "")}. " : "";
+            sb.Append($"<footer class=\"note\">{firmware}Made by FW-Helper {E(version)} from <span class=\"mono\">{E(csvName)}</span>. " +
                       "Open the CSV in FW-Helper's Monitor (Open session…) to see it in the live charts, or to make this report again.</footer>\n");
             sb.Append("</div><div id=\"tip\" hidden></div>\n");
 
@@ -229,6 +247,7 @@ header { display: flex; flex-direction: column; gap: 10px; }
 .eyebrow { font: 500 0.72rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); }
 .lede { color: var(--ink-2); }
 .lede b { color: var(--ink); font-weight: 600; }
+.usernote { border-left: 3px solid var(--rule); padding: 2px 0 2px 12px; color: var(--ink-2); white-space: normal; }
 .note { font-size: 0.84rem; color: var(--ink-3); }
 .mono { font-family: var(--f-mono); }
 .warn { background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn); border-radius: 6px; padding: 12px 16px; }

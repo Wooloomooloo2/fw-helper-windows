@@ -57,6 +57,23 @@ namespace FwHelper.Features
             }
         }
 
+        /// <summary>The newest present timestamp seen from any process (ms on the ETW clock).</summary>
+        public double Latest { get { lock (_lock) return _latest; } }
+
+        /// <summary>A process's presents newer than <paramref name="afterMs"/>, ascending, from the same source <see cref="Fps"/> counts.</summary>
+        public List<double> PresentsAfter(int pid, double afterMs)
+        {
+            lock (_lock)
+            {
+                var q = _presents.TryGetValue((pid, PresentSource.Api), out var api) && api.Count > 0 ? api
+                      : _presents.TryGetValue((pid, PresentSource.Kernel), out var kernel) ? kernel : null;
+                if (q is null) return new List<double>();
+                var list = q.Where(t => t > afterMs).ToList();
+                list.Sort();
+                return list;
+            }
+        }
+
         private double? Count(int pid, PresentSource source)
         {
             if (!_presents.TryGetValue((pid, source), out var q)) return null;

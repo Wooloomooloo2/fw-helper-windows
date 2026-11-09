@@ -28,6 +28,7 @@ namespace FwHelper.Hardware
         public FpsCounter Counter { get; } = new();
         public string? Error { get; private set; }
         public bool Running => _session is not null && Error is null;
+        public DateTime? Origin { get; private set; }
 
         public void Start()
         {
@@ -71,20 +72,23 @@ namespace FwHelper.Hardware
                     ? (FpsCounter.IsDxgiTestPresent(e.EventData(), e.PointerSize) ? null : PresentSource.Api) :
                 e.ProviderGuid == D3D9 && id == D3D9PresentStart ? PresentSource.Api :
                 e.ProviderGuid == DxgKrnl && id == DxgKrnlPresentInfo ? PresentSource.Kernel : null;
-            if (source is PresentSource s) Counter.Record(e.ProcessID, s, e.TimeStampRelativeMSec);
+            if (source is not PresentSource s) return;
+            // Wall time of ETW time 0, for the frames file (taken once: both clocks advance together)
+            Origin ??= e.TimeStamp.AddMilliseconds(-e.TimeStampRelativeMSec);
+            Counter.Record(e.ProcessID, s, e.TimeStampRelativeMSec);
         }
 
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
 
         /// <summary>FPS of the foreground app, or of the busiest presenter if the foreground app isn't drawing frames.</summary>
-        public (double fps, string app)? Current()
+        public (double fps, string app, int pid)? Current()
         {
             if (!Running) return null;
             Counter.Prune();
             GetWindowThreadProcessId(GetForegroundWindow(), out uint fg);
-            if (fg != 0 && Counter.Fps((int)fg) is double f) return (f, ProcessName((int)fg));
-            return Counter.Busiest() is (int pid, double fps) ? (fps, ProcessName(pid)) : null;
+            if (fg != 0 && Counter.Fps((int)fg) is double f) return (f, ProcessName((int)fg), (int)fg);
+            return Counter.Busiest() is (int pid, double fps) ? (fps, ProcessName(pid), pid) : null;
         }
 
         private static readonly Dictionary<int, string> _names = new();

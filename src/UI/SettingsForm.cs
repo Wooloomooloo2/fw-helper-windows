@@ -370,6 +370,7 @@ namespace FwHelper.UI
             // Restore first: a window Windows minimised when a screen was unplugged would otherwise come back at its old
             // position, on the screen that's gone, and setting Location while minimised doesn't move it
             if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
+            RepairSize(); // a bare title bar left by minimise + rescale: put the size back before placing it at the tray
             var area = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromControl(this).WorkingArea;
             Location = new Point(area.Right - Width - 10, area.Bottom - Height - 10);
             Show();

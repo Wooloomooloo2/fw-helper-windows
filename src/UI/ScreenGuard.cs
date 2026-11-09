@@ -20,6 +20,13 @@ namespace FwHelper.UI
             });
         }
 
+        /// <summary>
+        /// True when a window's client area is under half its expected size in either direction: what's left after Windows
+        /// minimises it and it gets rescaled or restored at the minimised size (a bare title bar, seen 2026-11-08).
+        /// </summary>
+        public static bool Shrunk(Size client, Size? expected) =>
+            expected is Size e && e.Width > 0 && e.Height > 0 && (client.Width * 2 < e.Width || client.Height * 2 < e.Height);
+
         /// <summary>The bounds unchanged if reachable; otherwise the same size (shrunk to fit) centred on <paramref name="fallback"/>.</summary>
         public static Rectangle Fit(Rectangle bounds, IEnumerable<Rectangle> workAreas, Rectangle fallback)
         {

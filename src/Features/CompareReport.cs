@@ -23,19 +23,23 @@ namespace FwHelper.Features
 
         // ---------- What each run was set to ----------
 
-        public static readonly string[] SettingNames = { "Game", "Profile", "Windows mode", "Fan", "Power", "CPU boost", "Power target", "CPU cap" };
+        public static readonly string[] SettingNames = { "Game", "Game settings", "Profile", "Windows mode", "Fan", "Fan curve", "Power", "CPU boost", "Power target", "CPU cap", "BIOS", "EC" };
 
         /// <summary>The run's settings as recorded, in <see cref="SettingNames"/> order. Mixed values show their shares.</summary>
         public static string[] Settings(RunSummary s) => new[]
         {
             s.Game ?? "none detected",
+            s.Context?.GameSettings ?? "not noted",
             Mixed(s.Modes),
             s.WinModes.Count == 0 ? "not recorded" : Mixed(s.WinModes),
             Mixed(s.Fan),
+            s.Context?.FanCurve ?? "not recorded",
             s.OnAcFraction >= 1 ? "AC" : s.OnAcFraction == 0 ? "battery" : $"AC {s.OnAcFraction * 100:0} %",
             s.BoostOffFraction >= 1 ? "off" : s.BoostOffFraction == 0 ? "on" : $"off {s.BoostOffFraction * 100:0} %",
             s.PowerTarget is int pt ? $"{pt} W" : "none",
             s.FreqCap is int fc ? $"down to {fc} MHz" : "none",
+            s.Context?.Bios ?? "not recorded",
+            s.Context?.Ec ?? "not recorded",
         };
 
         private static string Mixed(IReadOnlyList<Share> shares) => shares.Count switch
@@ -145,6 +149,8 @@ namespace FwHelper.Features
                 var parts = new List<string>();
                 if (s["fps"] is { } f && b["fps"] is { } bf)
                     parts.Add($"{Signed(Change(f.Median, bf.Median))} FPS ({bf.Median:0} → {f.Median:0})".Replace("same FPS", "the same FPS"));
+                if (s.Frames?.Low1 is double l && b.Frames?.Low1 is double bl)
+                    parts.Add($"1 % low {Signed(Change(l, bl))} ({bl:0} → {l:0})");
                 if (s["package_w"] is { } p && b["package_w"] is { } bp)
                     parts.Add($"{SignedW(p.Avg - bp.Avg)} package ({bp.Avg.ToString("0.0", Inv)} → {p.Avg.ToString("0.0", Inv)} W)");
                 if (Change(s.FpsPerWatt, b.FpsPerWatt) is double e)
@@ -222,10 +228,16 @@ namespace FwHelper.Features
             if (runs.Any(r => r.S["fps"] is not null))
             {
                 sb.Append($"<section><div class=\"eyebrow\">{section++} · Frame rate</div><h2>FPS</h2><div class=\"chart\">");
+                var withFps = runs.Where(r => r.S["fps"] is not null).ToList();
+                int lows = withFps.Count(r => r.S.Frames?.Low1 is not null);
+                string slow = lows == withFps.Count ? "1 % low" : lows == 0 ? "5th percentile second (the slow seconds)" : "1 % low, or the 5th percentile second for older recordings";
                 sb.Append("<div class=\"legend\"><span><i class=\"sw\" style=\"background:var(--fps)\"></i>Median</span>" +
-                          "<span><i class=\"sw\" style=\"background:var(--fps-2)\"></i>5th percentile second (the slow seconds)</span></div>");
+                          $"<span><i class=\"sw\" style=\"background:var(--fps-2)\"></i>{E(slow)}</span></div>");
                 FpsChart(sb, runs, baseline);
-                sb.Append("</div><p class=\"note\">The 5th percentile is of one-second averages, not frame times: 1 % lows need per-frame recording, which comes later.</p></section>\n");
+                sb.Append("</div><p class=\"note\">" + (lows == withFps.Count
+                    ? "The 1 % low is the frame rate of the slowest 1 % of frames: far below the median means stutter."
+                    : "Recordings from before 8 Nov 2026 have no frame times, so they show the 5th percentile of one-second averages instead of a 1 % low; " +
+                      "it hides short stutters, so compare it only with another 5th percentile.") + "</p></section>\n");
             }
             if (runs.Any(r => r.S["package_w"] is not null))
             {
@@ -266,7 +278,7 @@ namespace FwHelper.Features
             var same = Enumerable.Range(0, SettingNames.Length).Except(diff).ToList();
             if (same.Count > 0)
                 sb.Append($"<p class=\"note\">The same in every run: {E(string.Join(" · ", same.Select(i => $"{SettingNames[i]} {settings[0][i]}")))}. " +
-                          "Fan curves, firmware and in-game settings aren't recorded yet, so a change there won't show here.</p>");
+                          "Game settings come from each run's notes (typed when the recording stops, or with ✎ in Compare). Recordings from before 8 Nov 2026 have no notes, so their fan curve and firmware show as not recorded.</p>");
             sb.Append("</section>\n");
 
             // Every figure, run by run
@@ -274,6 +286,7 @@ namespace FwHelper.Features
             var cols = new (string Head, Func<RunSummary, double?> Get, string Fmt, bool Delta)[]
             {
                 ("Median FPS", s => s["fps"]?.Median, "0", true),
+                ("1 % low", s => s.Frames?.Low1, "0", true),
                 ("5th pct FPS", s => s["fps"]?.P5, "0", true),
                 ("Package W", s => s["package_w"]?.Avg, "0.0", true),
                 ("CPU W", s => s["cpu_w"]?.Avg, "0.0", true),
@@ -285,6 +298,7 @@ namespace FwHelper.Features
                 ("Fan rpm", s => s["fan_rpm"]?.Avg, "0", false),
                 ("Steady s", s => s.Steady.Count, "0", false),
             };
+            cols = cols.Where(c => runs.Any(r => c.Get(r.S) is not null)).ToArray(); // no empty columns (1 % low on old recordings)
             foreach (var c in cols) sb.Append($"<th>{E(c.Head)}</th>");
             sb.Append("<th class=\"l\">GPU held by</th></tr></thead><tbody>");
             for (int r = 0; r < runs.Count; r++)
@@ -358,9 +372,11 @@ namespace FwHelper.Features
                 RowLabel(sb, runs, r, baseline);
                 if (runs[r].S["fps"] is not { } f) continue;
                 double y = 18 + r * RowH + 6;
-                sb.Append($"<g><title>{E(runs[r].Name)}: median {f.Median:0} FPS, 5th percentile {f.P5:0}, range {f.Min:0}–{f.Max:0}</title>");
+                double low = runs[r].S.Frames?.Low1 ?? f.P5;
+                string lowName = runs[r].S.Frames?.Low1 is null ? "5th percentile second" : "1 % low";
+                sb.Append($"<g><title>{E(runs[r].Name)}: median {f.Median:0} FPS, {lowName} {low:0}, range {f.Min:0}–{f.Max:0}</title>");
                 sb.Append($"<rect x=\"{LabelW}\" y=\"{F(y)}\" width=\"{F(X(f.Median) - LabelW)}\" height=\"14\" rx=\"2\" style=\"fill:var(--fps)\"/>");
-                sb.Append($"<rect x=\"{LabelW}\" y=\"{F(y + 16)}\" width=\"{F(X(f.P5) - LabelW)}\" height=\"6\" rx=\"1.5\" style=\"fill:var(--fps-2)\"/>");
+                sb.Append($"<rect x=\"{LabelW}\" y=\"{F(y + 16)}\" width=\"{F(X(low) - LabelW)}\" height=\"6\" rx=\"1.5\" style=\"fill:var(--fps-2)\"/>");
                 string ch = r == baseline ? "" : Signed(Change(f.Median, bm));
                 sb.Append($"<text x=\"{F(X(f.Median) + 6)}\" y=\"{F(y + 12)}\" class=\"val\">{f.Median:0}<tspan class=\"dl\"> {E(ch)}</tspan></text></g>");
             }
